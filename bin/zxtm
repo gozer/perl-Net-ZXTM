@@ -1,0 +1,103 @@
+#!/usr/bin/env perl
+
+#PODNAME: zxtm
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+
+use JSON;
+
+use Net::ZXTM;
+use Number::Format qw(:subs);
+use Time::Duration;
+
+foreach my $url (@ARGV) {
+
+	my $zxtm = Net::ZXTM->new($url, $ENV{ZXTM_USER}, $ENV{ZXTM_PASS});
+
+	my $resp = $zxtm->call("/status");
+
+	my %zxtm;
+
+	foreach my $zxtm (@$resp) {
+	  next if ('local_tm' eq $zxtm->{name});
+	  $zxtm{$zxtm->{name}} = 1;
+	}
+
+	#print to_json( $resp, { ascii => 1, pretty => 1 } );
+
+	print "Info for cluster : " . $url . "\n";
+
+	my %pretty_names = (
+	hourly_peak_bytes_in   =>  "Hourly Peak Bytes In",
+	hourly_peak_bytes_out  =>  "Hourly Peak Bytes Out",
+	hourly_peak_requests   =>  "Hourly Peak Requests",
+	hourly_peak_ssl_connections => "Hourly Peak SSL Connections",
+	up_time           => "Uptime",
+	sys_cpu_busy => "CPU Busy",
+        sys_cpu_idle => "CPU Idle",
+        sys_cpu_system_busy => "CPU Syatem Busy",
+        sys_cpu_user_busy => "CPU User Busy",
+        sys_mem_buffered => "Memory Buffered",
+        sys_mem_free => "Memory Free",
+        sys_mem_in_use => "Memory Used",
+        sys_mem_swap_total => "Swap Total",
+	sys_mem_swapped => "Swap Used",
+        sys_mem_total => "Memory Total",
+	);
+
+	foreach my $tm (sort keys %zxtm) {
+	  my $info = $zxtm->call("/status/$tm/information");
+	  my $version = $info->{information}{tm_version};
+
+	  my $global_stat = $zxtm->call("/status/$tm/statistics/globals")->{statistics};
+
+	  print " - $tm (v $version)\n";
+
+	  foreach my $stat (sort keys %$global_stat) {
+	     my $val;
+
+	     if ($stat =~ /peak/) {
+        	$val = format_bytes($global_stat->{$stat});
+
+		if ($stat =~ /_per_second/) {
+		  $stat =~ s/_per_second//;
+		  $val .= "/s";
+		}
+	     }
+
+	     if ('up_time' eq $stat) {
+        	$val = duration($global_stat->{$stat}/1_000);
+	     }
+	     
+	     if ($stat =~ /^sys_cpu/) {
+	       $val = $global_stat->{$stat};
+	       
+	       if ($stat =~ /_percent$/) {
+	         $stat =~ s/_percent$//;
+		 $val .= " %";
+	       }
+	     }
+	     
+	     if ($stat =~ /^sys_mem/) {
+	       $val = format_bytes( $global_stat->{$stat} * 1024 * 1024)
+	     }
+
+	     if ($val) {
+	       my $pretty = $pretty_names{$stat} || $stat;
+	       print "    - $pretty: $val\n";
+	     }
+	  }
+	}
+}
+
+
+__END__
+
+    - sys_cpu_busy: 48 %
+    - sys_cpu_idle: 51 %
+    - sys_cpu_system_busy: 7 %
+    - sys_cpu_user_busy: 41 %
