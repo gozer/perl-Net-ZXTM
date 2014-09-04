@@ -94,7 +94,7 @@ sub call {
     return $json;
   }
   else {
-    die "Failed to talk to ZXTM: " . $resp->status_line;
+    die "Failed to talk to ZXTM: " . $resp->status_line;q
   }
 }
 
