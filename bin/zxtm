@@ -25,11 +25,9 @@ use RRD::Simple ();
 #$RRD::Simple::DEBUG=1;
 #
 
-print join " " , ('$>', $0, @ARGV, "\n");
+print join " ", ( '$>', $0, @ARGV, "\n" );
 
-my $rrd = RRD::Simple->new( 
-  default_dstype => "COUNTER",
-);
+my $rrd = RRD::Simple->new( default_dstype => "COUNTER", );
 
 my %rrd_default = (
     ssl_cipher_encrypts => "COUNTER",
@@ -43,220 +41,236 @@ my %rrd_default = (
 #substr( $str, 0, 3 );
 
 foreach my $url (@ARGV) {
-  my $uri = URI->new($url);
-  my $host = $uri->host;
-  
-  my $rrdfile = "rrd/global-$host.rrd";
-  $rrd->create($rrdfile,  %rrd_default) if ! -f $rrdfile;
+    my $uri  = URI->new($url);
+    my $host = $uri->host;
 
-	my $zxtm = Net::ZXTM->new($url, $ENV{ZXTM_USER}, $ENV{ZXTM_PASS});
-	
-	
+    my $rrdfile = "rrd/global-$host.rrd";
+    $rrd->create( $rrdfile, %rrd_default ) if !-f $rrdfile;
 
-	my $resp = $zxtm->call("/status");
+    my $zxtm = Net::ZXTM->new( $url, $ENV{ZXTM_USER}, $ENV{ZXTM_PASS} );
 
-	my %zxtm;
+    my $resp = $zxtm->call("/status");
 
-	foreach my $zxtm (@$resp) {
-	  next if ('local_tm' eq $zxtm->{name});
-	  $zxtm{$zxtm->{name}} = 1;
-	}
-        my $total_zxtm = scalar keys %zxtm;
-	
-	print "Info for $total_zxtm nodes cluster : " . $url . "\n";
+    my %zxtm;
 
-        my %total_stats;
-	
-	foreach my $tm (sort keys %zxtm) {
-	  my $info = $zxtm->call("/status/$tm/information");
-	  my $version = $info->{information}{tm_version};
+    foreach my $zxtm (@$resp) {
+        next if ( 'local_tm' eq $zxtm->{name} );
+        $zxtm{ $zxtm->{name} } = 1;
+    }
+    my $total_zxtm = scalar keys %zxtm;
 
-	  my $global_stat = $zxtm->call("/status/$tm/statistics/globals")->{statistics};
+    print "Info for $total_zxtm nodes cluster : " . $url . "\n";
 
-	  print " - $tm (v$version)\n";
-	  
-          $rrd->create("rrd/$tm.rrd",  %rrd_default ) if ! -f "rrd/$tm.rrd";
-	  $rrd->update("rrd/$tm.rrd", %$global_stat);
-	  foreach my $stat (sort keys %$global_stat) {
-	     $total_stats{$stat} += $global_stat->{$stat};
-	     output_stat($stat, $global_stat->{$stat});
-	  }
-	}
-	
-	print " - Cluster Total\n";
-	foreach my $stat (sort keys %total_stats) {
-	    #Compute an average
-	    if ($stat =~ /^sys_cpu/) {
-	      $total_stats{$stat} = int($total_stats{$stat} / $total_zxtm);
-	    }
-	    
-	    output_stat($stat, $total_stats{$stat});
-	}
-	
-	$rrd->update($rrdfile, %total_stats);
-	
-	$rrd->graph($rrdfile,
-	  basename => "global-$host-hourly_peak_bytes",
-	  sources => [qw(
-	    hourly_peak_bytes_i
-	    hourly_peak_bytes_o
-	    )],
-	);
-	$rrd->graph($rrdfile,
-	  basename => "global-$host-hourly_cpu",
-	  sources => [qw(
-	    sys_cpu_busy_percen
-	    sys_cpu_idle_percen
-	    )],
-	);	
-	$rrd->graph($rrdfile,
-	  basename => "global-$host-encryption",
-	  sources => [qw(
-	    ssl_cipher_encrypts
-	    ssl_cipher_decrypts
-	    )],
-	);
+    my %total_stats;
 
-	check_ssl($zxtm);
-	check_pools($zxtm);
+    foreach my $tm ( sort keys %zxtm ) {
+        my $info    = $zxtm->call("/status/$tm/information");
+        my $version = $info->{information}{tm_version};
+
+        my $global_stat =
+          $zxtm->call("/status/$tm/statistics/globals")->{statistics};
+
+        print " - $tm (v$version)\n";
+
+        $rrd->create( "rrd/$tm.rrd", %rrd_default ) if !-f "rrd/$tm.rrd";
+        $rrd->update( "rrd/$tm.rrd", %$global_stat );
+        foreach my $stat ( sort keys %$global_stat ) {
+            $total_stats{$stat} += $global_stat->{$stat};
+            output_stat( $stat, $global_stat->{$stat} );
+        }
+    }
+
+    print " - Cluster Total\n";
+    foreach my $stat ( sort keys %total_stats ) {
+
+        #Compute an average
+        if ( $stat =~ /^sys_cpu/ ) {
+            $total_stats{$stat} = int( $total_stats{$stat} / $total_zxtm );
+        }
+
+        output_stat( $stat, $total_stats{$stat} );
+    }
+
+    $rrd->update( $rrdfile, %total_stats );
+
+    $rrd->graph(
+        $rrdfile,
+        basename => "global-$host-hourly_peak_bytes",
+        sources  => [
+            qw(
+              hourly_peak_bytes_i
+              hourly_peak_bytes_o
+              )
+        ],
+    );
+    $rrd->graph(
+        $rrdfile,
+        basename => "global-$host-hourly_cpu",
+        sources  => [
+            qw(
+              sys_cpu_busy_percen
+              sys_cpu_idle_percen
+              )
+        ],
+    );
+    $rrd->graph(
+        $rrdfile,
+        basename => "global-$host-encryption",
+        sources  => [
+            qw(
+              ssl_cipher_encrypts
+              ssl_cipher_decrypts
+              )
+        ],
+    );
+
+    check_ssl($zxtm);
+    check_pools($zxtm);
 }
 
 sub check_ssl {
-  my $zxtm = shift;
-  print "** Checking SSL\n";
-  
-  my $certs = $zxtm->call("/config/active/ssl/server_keys");
-  
-  my %certs;
-  foreach my $cert (@$certs) {
-    my $name = $cert->{name};
-    my $info = $zxtm->call("/config/active/ssl/server_keys/$name");
+    my $zxtm = shift;
+    print "** Checking SSL\n";
 
-    my $x509 = Crypt::OpenSSL::X509->new_from_string( $info->{properties}{basic}{public} );
-    
-    $certs{$name}{not_before} = $x509->notBefore();
-    $certs{$name}{not_after} = $x509->notAfter();
-    $certs{$name}{subject} =  $x509->subject();
-    $certs{$name}{valid_now} = !$x509->checkend(0);
-    $certs{$name}{valid_soon} = !$x509->checkend(60*60*24*30);
-    
-    if (!$certs{$name}{valid_now} or !$certs{$name}{valid_soon}) {
-      my $status;
-      if (!$certs{$name}{valid_soon}) {
-        $status = "expiring";
-      }
-      if (!$certs{$name}{valid_now}) {
-        $status = "expired";
-      }
-      print " * [$status] $name Expires on $certs{$name}{not_after}\n";
+    my $certs = $zxtm->call("/config/active/ssl/server_keys");
+
+    my %certs;
+    foreach my $cert (@$certs) {
+        my $name = $cert->{name};
+        my $info = $zxtm->call("/config/active/ssl/server_keys/$name");
+
+        my $x509 = Crypt::OpenSSL::X509->new_from_string(
+            $info->{properties}{basic}{public} );
+
+        $certs{$name}{not_before} = $x509->notBefore();
+        $certs{$name}{not_after}  = $x509->notAfter();
+        $certs{$name}{subject}    = $x509->subject();
+        $certs{$name}{valid_now}  = !$x509->checkend(0);
+        $certs{$name}{valid_soon} = !$x509->checkend( 60 * 60 * 24 * 30 );
+
+        if ( !$certs{$name}{valid_now} or !$certs{$name}{valid_soon} ) {
+            my $status;
+            if ( !$certs{$name}{valid_soon} ) {
+                $status = "expiring";
+            }
+            if ( !$certs{$name}{valid_now} ) {
+                $status = "expired";
+            }
+            print " * [$status] $name Expires on $certs{$name}{not_after}\n";
+        }
     }
-  }
 }
 
-sub check_pools { 
-  my $zxtm = shift;
-  
-  print  "** Checking pools\n";
-  
-  my $pools = $zxtm->call("/config/active/pools");
-  
-  my %pools;
-  foreach my $pool (@$pools) {
-    my $name = $pool->{name};
+sub check_pools {
+    my $zxtm = shift;
 
-    $pools{$name}{info} = $zxtm->call("/config/active/pools/$name");
-    $pools{$name}{note} = URI::Escape::uri_unescape($pools{$name}{info}{properties}{basic}{note});
-    $pools{$name}{nodes} = {};
-    
-    my $node_count = @{$pools{$name}{info}{properties}{basic}{nodes_table}};
-    my $interesting;
-    
-    foreach my $node (@{$pools{$name}{info}{properties}{basic}{nodes_table}}) {
-      my $state = $node->{state} || '*no-state*';
-      $interesting++ if $state ne 'active';
+    print "** Checking pools\n";
+
+    my $pools = $zxtm->call("/config/active/pools");
+
+    my %pools;
+    foreach my $pool (@$pools) {
+        my $name = $pool->{name};
+
+        $pools{$name}{info} = $zxtm->call("/config/active/pools/$name");
+        $pools{$name}{note} = URI::Escape::uri_unescape(
+            $pools{$name}{info}{properties}{basic}{note} );
+        $pools{$name}{nodes} = {};
+
+        my $node_count =
+          @{ $pools{$name}{info}{properties}{basic}{nodes_table} };
+        my $interesting;
+
+        foreach
+          my $node ( @{ $pools{$name}{info}{properties}{basic}{nodes_table} } )
+        {
+            my $state = $node->{state} || '*no-state*';
+            $interesting++ if $state ne 'active';
+        }
+
+        if ($interesting) {
+            print " Pool $name ($node_count nodes):\n";
+            print "  * Note: $pools{$name}{note}\n" if $pools{$name}{note};
+
+            foreach my $node (
+                @{ $pools{$name}{info}{properties}{basic}{nodes_table} } )
+            {
+                my $name = $node->{node};
+
+                if ( $name =~ /(\d+\.\d+\.\d+\.\d+):(\d+)/ ) {
+                    my $port = $2;
+                    my $ip   = $1;
+
+                    use Socket;
+                    my $fqdn = gethostbyaddr( inet_aton($ip), AF_INET );
+                    if ($fqdn) {
+                        $name = "$fqdn($ip):$port";
+                    }
+
+                }
+
+                my $state = $node->{state} || '*no-state*';
+                print "  + [$state] $name\n";
+            }
+
+        }
     }
-    
-    if ($interesting) {
-      print  " Pool $name ($node_count nodes):\n";
-      print  "  * Note: $pools{$name}{note}\n" if $pools{$name}{note};
-
-      foreach my $node (@{$pools{$name}{info}{properties}{basic}{nodes_table}}) {
-        my $name = $node->{node};
-	
-	if ($name =~ /(\d+\.\d+\.\d+\.\d+):(\d+)/ ) {
-	  my $port = $2;
-	  my $ip = $1;
-	  
-	  use Socket;
-	  my $fqdn = gethostbyaddr(inet_aton($ip), AF_INET);
-	  if ($fqdn) {
-	    $name = "$fqdn($ip):$port";
-	  }
-	 
-	}
-	
-        my $state = $node->{state} || '*no-state*';
-        print  "  + [$state] $name\n";
-      }
-
-    }
-  }
-} 
+}
 
 my %pretty_names = (
-hourly_peak_bytes_in   =>  "Hourly Peak Bytes In",
-hourly_peak_bytes_out  =>  "Hourly Peak Bytes Out",
-hourly_peak_requests   =>  "Hourly Peak Requests",
-hourly_peak_ssl_connections => "Hourly Peak SSL Connections",
-sys_cpu_busy => "CPU Busy",
-sys_cpu_idle => "CPU Idle",
-sys_cpu_system_busy => "CPU Syatem Busy",
-sys_cpu_user_busy => "CPU User Busy",
-sys_mem_buffered => "Memory Buffered",
-sys_mem_free => "Memory Free",
-sys_mem_in_use => "Memory Used",
-sys_mem_swap_total => "Swap Total",
-sys_mem_swapped => "Swap Used",
-sys_mem_total => "Memory Total",
+    hourly_peak_bytes_in        => "Hourly Peak Bytes In",
+    hourly_peak_bytes_out       => "Hourly Peak Bytes Out",
+    hourly_peak_requests        => "Hourly Peak Requests",
+    hourly_peak_ssl_connections => "Hourly Peak SSL Connections",
+    sys_cpu_busy                => "CPU Busy",
+    sys_cpu_idle                => "CPU Idle",
+    sys_cpu_system_busy         => "CPU Syatem Busy",
+    sys_cpu_user_busy           => "CPU User Busy",
+    sys_mem_buffered            => "Memory Buffered",
+    sys_mem_free                => "Memory Free",
+    sys_mem_in_use              => "Memory Used",
+    sys_mem_swap_total          => "Swap Total",
+    sys_mem_swapped             => "Swap Used",
+    sys_mem_total               => "Memory Total",
 );
 
 sub output_stat {
-  my ($stat, $stat_value) = @_;
-  	  
-     my $val;
+    my ( $stat, $stat_value ) = @_;
 
-     if ($stat =~ /peak/) {
+    my $val;
+
+    if ( $stat =~ /peak/ ) {
         $val = format_bytes($stat_value);
 
-	if ($stat =~ /_per_second/) {
-	  $stat =~ s/_per_second//;
-	  $val .= "/s";
-	}
-     }
+        if ( $stat =~ /_per_second/ ) {
+            $stat =~ s/_per_second//;
+            $val .= "/s";
+        }
+    }
 
-     if ($stat =~ /^sys_cpu/) {
-       $val = $stat_value;
+    if ( $stat =~ /^sys_cpu/ ) {
+        $val = $stat_value;
 
-       if ($stat =~ /_percent$/) {
-	 $stat =~ s/_percent$//;
-	 $val .= " %";
-       }
-     }
+        if ( $stat =~ /_percent$/ ) {
+            $stat =~ s/_percent$//;
+            $val .= " %";
+        }
+    }
 
-     if ($stat =~ /^sys_mem/) {
-       $val = format_bytes( $stat_value * 1024 * 1024)
-     }
-     
-     if ($stat =~ /^ssl_cipher_(de|en)crypts/) {
-       $val = $stat_value;
-     }
+    if ( $stat =~ /^sys_mem/ ) {
+        $val = format_bytes( $stat_value * 1024 * 1024 );
+    }
 
-     if ($val) {
-       my $pretty = $pretty_names{$stat} || $stat;
-       print "    - $pretty: $val\n";
-     }
- }
-	 
+    if ( $stat =~ /^ssl_cipher_(de|en)crypts/ ) {
+        $val = $stat_value;
+    }
+
+    if ($val) {
+        my $pretty = $pretty_names{$stat} || $stat;
+        print "    - $pretty: $val\n";
+    }
+}
+
 __END__
 
 "data_entries": 0,
