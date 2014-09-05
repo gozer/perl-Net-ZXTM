@@ -5,6 +5,8 @@
 use strict;
 use warnings;
 
+local $| = 1;
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -13,10 +15,43 @@ use JSON;
 use Net::ZXTM;
 use Number::Format qw(:subs);
 use Time::Duration;
+use URI::Escape ();
+use Crypt::OpenSSL::X509;
+
+use Data::Dumper;
+
+use RRD::Simple ();
+
+#$RRD::Simple::DEBUG=1;
+#
+
+print join " " , ('$>', $0, @ARGV, "\n");
+
+my $rrd = RRD::Simple->new( 
+  default_dstype => "COUNTER",
+);
+
+my %rrd_default = (
+    ssl_cipher_encrypts => "COUNTER",
+    ssl_cipher_decrypts => "COUNTER",
+    sys_cpu_busy_percen => "GAUGE",
+    sys_cpu_idle_percen => "GAUGE",
+    hourly_peak_bytes_i => "GAUGE",
+    hourly_peak_bytes_o => "GAUGE",
+);
+
+#substr( $str, 0, 3 );
 
 foreach my $url (@ARGV) {
+  my $uri = URI->new($url);
+  my $host = $uri->host;
+  
+  my $rrdfile = "rrd/global-$host.rrd";
+  $rrd->create($rrdfile,  %rrd_default) if ! -f $rrdfile;
 
 	my $zxtm = Net::ZXTM->new($url, $ENV{ZXTM_USER}, $ENV{ZXTM_PASS});
+	
+	
 
 	my $resp = $zxtm->call("/status");
 
@@ -26,78 +61,340 @@ foreach my $url (@ARGV) {
 	  next if ('local_tm' eq $zxtm->{name});
 	  $zxtm{$zxtm->{name}} = 1;
 	}
+        my $total_zxtm = scalar keys %zxtm;
+	
+	print "Info for $total_zxtm nodes cluster : " . $url . "\n";
 
-	#print to_json( $resp, { ascii => 1, pretty => 1 } );
-
-	print "Info for cluster : " . $url . "\n";
-
-	my %pretty_names = (
-	hourly_peak_bytes_in   =>  "Hourly Peak Bytes In",
-	hourly_peak_bytes_out  =>  "Hourly Peak Bytes Out",
-	hourly_peak_requests   =>  "Hourly Peak Requests",
-	hourly_peak_ssl_connections => "Hourly Peak SSL Connections",
-	up_time           => "Uptime",
-	sys_cpu_busy => "CPU Busy",
-        sys_cpu_idle => "CPU Idle",
-        sys_cpu_system_busy => "CPU Syatem Busy",
-        sys_cpu_user_busy => "CPU User Busy",
-        sys_mem_buffered => "Memory Buffered",
-        sys_mem_free => "Memory Free",
-        sys_mem_in_use => "Memory Used",
-        sys_mem_swap_total => "Swap Total",
-	sys_mem_swapped => "Swap Used",
-        sys_mem_total => "Memory Total",
-	);
-
+        my %total_stats;
+	
 	foreach my $tm (sort keys %zxtm) {
 	  my $info = $zxtm->call("/status/$tm/information");
 	  my $version = $info->{information}{tm_version};
 
 	  my $global_stat = $zxtm->call("/status/$tm/statistics/globals")->{statistics};
 
-	  print " - $tm (v $version)\n";
-
+	  print " - $tm (v$version)\n";
+	  
+          $rrd->create("rrd/$tm.rrd",  %rrd_default ) if ! -f "rrd/$tm.rrd";
+	  $rrd->update("rrd/$tm.rrd", %$global_stat);
 	  foreach my $stat (sort keys %$global_stat) {
-	     my $val;
-
-	     if ($stat =~ /peak/) {
-        	$val = format_bytes($global_stat->{$stat});
-
-		if ($stat =~ /_per_second/) {
-		  $stat =~ s/_per_second//;
-		  $val .= "/s";
-		}
-	     }
-
-	     if ('up_time' eq $stat) {
-        	$val = duration($global_stat->{$stat}/1_000);
-	     }
-	     
-	     if ($stat =~ /^sys_cpu/) {
-	       $val = $global_stat->{$stat};
-	       
-	       if ($stat =~ /_percent$/) {
-	         $stat =~ s/_percent$//;
-		 $val .= " %";
-	       }
-	     }
-	     
-	     if ($stat =~ /^sys_mem/) {
-	       $val = format_bytes( $global_stat->{$stat} * 1024 * 1024)
-	     }
-
-	     if ($val) {
-	       my $pretty = $pretty_names{$stat} || $stat;
-	       print "    - $pretty: $val\n";
-	     }
+	     $total_stats{$stat} += $global_stat->{$stat};
+	     output_stat($stat, $global_stat->{$stat});
 	  }
 	}
+	
+	print " - Cluster Total\n";
+	foreach my $stat (sort keys %total_stats) {
+	    #Compute an average
+	    if ($stat =~ /^sys_cpu/) {
+	      $total_stats{$stat} = int($total_stats{$stat} / $total_zxtm);
+	    }
+	    
+	    output_stat($stat, $total_stats{$stat});
+	}
+	
+	$rrd->update($rrdfile, %total_stats);
+	
+	$rrd->graph($rrdfile,
+	  basename => "global-$host-hourly_peak_bytes",
+	  sources => [qw(
+	    hourly_peak_bytes_i
+	    hourly_peak_bytes_o
+	    )],
+	);
+	$rrd->graph($rrdfile,
+	  basename => "global-$host-hourly_cpu",
+	  sources => [qw(
+	    sys_cpu_busy_percen
+	    sys_cpu_idle_percen
+	    )],
+	);	
+	$rrd->graph($rrdfile,
+	  basename => "global-$host-encryption",
+	  sources => [qw(
+	    ssl_cipher_encrypts
+	    ssl_cipher_decrypts
+	    )],
+	);
+
+	check_ssl($zxtm);
+	check_pools($zxtm);
 }
 
+sub check_ssl {
+  my $zxtm = shift;
+  print "** Checking SSL\n";
+  
+  my $certs = $zxtm->call("/config/active/ssl/server_keys");
+  
+  my %certs;
+  foreach my $cert (@$certs) {
+    my $name = $cert->{name};
+    my $info = $zxtm->call("/config/active/ssl/server_keys/$name");
 
+    my $x509 = Crypt::OpenSSL::X509->new_from_string( $info->{properties}{basic}{public} );
+    
+    $certs{$name}{not_before} = $x509->notBefore();
+    $certs{$name}{not_after} = $x509->notAfter();
+    $certs{$name}{subject} =  $x509->subject();
+    $certs{$name}{valid_now} = !$x509->checkend(0);
+    $certs{$name}{valid_soon} = !$x509->checkend(60*60*24*30);
+    
+    if (!$certs{$name}{valid_now} or !$certs{$name}{valid_soon}) {
+      my $status;
+      if (!$certs{$name}{valid_soon}) {
+        $status = "expiring";
+      }
+      if (!$certs{$name}{valid_now}) {
+        $status = "expired";
+      }
+      print " * [$status] $name Expires on $certs{$name}{not_after}\n";
+    }
+  }
+}
+
+sub check_pools { 
+  my $zxtm = shift;
+  
+  print  "** Checking pools\n";
+  
+  my $pools = $zxtm->call("/config/active/pools");
+  
+  my %pools;
+  foreach my $pool (@$pools) {
+    my $name = $pool->{name};
+
+    $pools{$name}{info} = $zxtm->call("/config/active/pools/$name");
+    $pools{$name}{note} = URI::Escape::uri_unescape($pools{$name}{info}{properties}{basic}{note});
+    $pools{$name}{nodes} = {};
+    
+    my $node_count = @{$pools{$name}{info}{properties}{basic}{nodes_table}};
+    my $interesting;
+    
+    foreach my $node (@{$pools{$name}{info}{properties}{basic}{nodes_table}}) {
+      my $state = $node->{state} || '*no-state*';
+      $interesting++ if $state ne 'active';
+    }
+    
+    if ($interesting) {
+      print  " Pool $name ($node_count nodes):\n";
+      print  "  * Note: $pools{$name}{note}\n" if $pools{$name}{note};
+
+      foreach my $node (@{$pools{$name}{info}{properties}{basic}{nodes_table}}) {
+        my $name = $node->{node};
+	
+	if ($name =~ /(\d+\.\d+\.\d+\.\d+):(\d+)/ ) {
+	  my $port = $2;
+	  my $ip = $1;
+	  
+	  use Socket;
+	  my $fqdn = gethostbyaddr(inet_aton($ip), AF_INET);
+	  if ($fqdn) {
+	    $name = "$fqdn($ip):$port";
+	  }
+	 
+	}
+	
+        my $state = $node->{state} || '*no-state*';
+        print  "  + [$state] $name\n";
+      }
+
+    }
+  }
+} 
+
+my %pretty_names = (
+hourly_peak_bytes_in   =>  "Hourly Peak Bytes In",
+hourly_peak_bytes_out  =>  "Hourly Peak Bytes Out",
+hourly_peak_requests   =>  "Hourly Peak Requests",
+hourly_peak_ssl_connections => "Hourly Peak SSL Connections",
+sys_cpu_busy => "CPU Busy",
+sys_cpu_idle => "CPU Idle",
+sys_cpu_system_busy => "CPU Syatem Busy",
+sys_cpu_user_busy => "CPU User Busy",
+sys_mem_buffered => "Memory Buffered",
+sys_mem_free => "Memory Free",
+sys_mem_in_use => "Memory Used",
+sys_mem_swap_total => "Swap Total",
+sys_mem_swapped => "Swap Used",
+sys_mem_total => "Memory Total",
+);
+
+sub output_stat {
+  my ($stat, $stat_value) = @_;
+  	  
+     my $val;
+
+     if ($stat =~ /peak/) {
+        $val = format_bytes($stat_value);
+
+	if ($stat =~ /_per_second/) {
+	  $stat =~ s/_per_second//;
+	  $val .= "/s";
+	}
+     }
+
+     if ($stat =~ /^sys_cpu/) {
+       $val = $stat_value;
+
+       if ($stat =~ /_percent$/) {
+	 $stat =~ s/_percent$//;
+	 $val .= " %";
+       }
+     }
+
+     if ($stat =~ /^sys_mem/) {
+       $val = format_bytes( $stat_value * 1024 * 1024)
+     }
+     
+     if ($stat =~ /^ssl_cipher_(de|en)crypts/) {
+       $val = $stat_value;
+     }
+
+     if ($val) {
+       my $pretty = $pretty_names{$stat} || $stat;
+       print "    - $pretty: $val\n";
+     }
+ }
+	 
 __END__
 
-    - sys_cpu_busy: 48 %
-    - sys_cpu_idle: 51 %
-    - sys_cpu_system_busy: 7 %
-    - sys_cpu_user_busy: 41 %
+"data_entries": 0,
+"data_memory_usage": 25291768,
+"events_seen": 649688,
+"hourly_peak_bytes_in_per_second": 53595913,
+"hourly_peak_bytes_out_per_second": 278469834,
+"hourly_peak_requests_per_second": 1571,
+"hourly_peak_ssl_connections_per_second": 1212,
+"num_idle_connections": 520,
+"number_child_processes": 24,
+"number_dnsa_cache_hits": 0,
+"number_dnsa_requests": 0,
+"number_dnsptr_cache_hits": 0,
+"number_dnsptr_requests": 0,
+"number_snmp_bad_requests": 0,
+"number_snmp_get_bulk_requests": 0,
+"number_snmp_get_next_requests": 0,
+"number_snmp_get_requests": 4435510,
+"number_snmp_unauthorised_requests": 0,
+"ssl_cipher_3des_decrypts": 3789390664,
+"ssl_cipher_3des_encrypts": 588469160,
+"ssl_cipher_aes_decrypts": 92953376,
+"ssl_cipher_aes_encrypts": 3184335440,
+"ssl_cipher_decrypts": 2044280568,
+"ssl_cipher_des_decrypts": 0,
+"ssl_cipher_des_encrypts": 0,
+"ssl_cipher_encrypts": 3244446139,
+"ssl_cipher_rc4_decrypts": 2456903824,
+"ssl_cipher_rc4_encrypts": 3766608835,
+"ssl_cipher_rsa_decrypts": 55209828,
+"ssl_cipher_rsa_decrypts_external": 0,
+"ssl_cipher_rsa_encrypts": 213918455,
+"ssl_cipher_rsa_encrypts_external": 0,
+"ssl_client_cert_expired": 0,
+"ssl_client_cert_invalid": 0,
+"ssl_client_cert_not_sent": 0,
+"ssl_client_cert_revoked": 0,
+"ssl_connections": 876674840,
+"ssl_handshake_sslv2": 0,
+"ssl_handshake_sslv3": 32830541,
+"ssl_handshake_t_l_sv1": 2011344991,
+"ssl_handshake_t_l_sv11": 3293046275,
+"ssl_session_id_disk_cache_hit": 0,
+"ssl_session_id_disk_cache_miss": 0,
+"ssl_session_id_mem_cache_hit": 773528073,
+"ssl_session_id_mem_cache_miss": 430974323,
+"sys_cpu_busy_percent": 26,
+"sys_cpu_idle_percent": 73,
+"sys_cpu_system_busy_percent": 6,
+"sys_cpu_user_busy_percent": 19,
+"sys_fds_free": 25153175,
+"sys_mem_buffered": 338,
+"sys_mem_free": 39415,
+"sys_mem_in_use": 8838,
+"sys_mem_swap_total": 2047,
+"sys_mem_swapped": 8,
+"sys_mem_total": 48254,
+"time_last_config_update": 275300,
+"total_backend_server_errors": 3,
+"total_bad_dns_packets": 0,
+"total_bytes_in": 13882900842273,
+"total_bytes_in_lo": 1566541601,
+"total_bytes_out": 844510173154982,
+"total_bytes_out_lo": 3638644390,
+"total_conn": 2535410430,
+"total_current_conn": 7643,
+"total_dns_responses": 10,
+"total_requests": 2523726555,
+"total_transactions": 0,
+"up_time": 870699200
+
+
+
+
+$VAR1 = [
+          'ssl_cipher_des_decr',
+          'ssl_cipher_aes_decr',
+          'total_transactions',
+          'ssl_session_id_mem_',
+          'sys_cpu_system_busy',
+          'number_snmp_unautho',
+          'total_dns_responses',
+          'sys_mem_swapped',
+          'ssl_cipher_rsa_encr',
+          'ssl_client_cert_not',
+          'sys_cpu_idle_percen',
+          'events_seen',
+          'hourly_peak_request',
+          'number_dnsptr_cache',
+          'sys_mem_swap_total',
+          'ssl_client_cert_inv',
+          'total_requests',
+          'total_bytes_in_lo',
+          'ssl_cipher_decrypts',
+          'ssl_cipher_3des_dec',
+          'ssl_cipher_aes_encr',
+          'ssl_session_id_disk',
+          'sys_mem_buffered',
+          'data_memory_usage',
+          'hourly_peak_bytes_i',
+          'hourly_peak_bytes_o',
+          'ssl_cipher_rsa_decr',
+          'number_dnsptr_reque',
+          'data_entries',
+          'ssl_cipher_rc4_decr',
+          'number_snmp_get_bul',
+          'ssl_cipher_rc4_encr',
+          'sys_mem_in_use',
+          'num_idle_connection',
+          'ssl_cipher_des_encr',
+          'ssl_client_cert_exp',
+          'number_snmp_get_req',
+          'total_bytes_out_lo',
+          'number_child_proces',
+          'number_snmp_bad_req',
+          'sys_mem_total',
+          'total_backend_serve',
+          'ssl_cipher_3des_enc',
+          'total_bad_dns_packe',
+          'time_last_config_up',
+          'total_conn',
+          'number_dnsa_cache_h',
+          'ssl_handshake_t_l_s',
+          'total_current_conn',
+          'total_bytes_out',
+          'sys_cpu_user_busy_p',
+          'ssl_connections',
+          'ssl_client_cert_rev',
+          'ssl_handshake_sslv3',
+          'ssl_handshake_sslv2',
+          'up_time',
+          'number_snmp_get_nex',
+          'sys_mem_free',
+          'total_bytes_in',
+          'hourly_peak_ssl_con',
+          'ssl_cipher_encrypts',
+          'sys_cpu_busy_percen',
+          'number_dnsa_request',
+          'sys_fds_free'
+        ];

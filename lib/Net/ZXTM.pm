@@ -90,11 +90,23 @@ sub call {
       }
       
     }
-    #print Dumper($json); use Data::Dumper;
     return $json;
   }
   else {
-    die "Failed to talk to ZXTM: " . $resp->status_line;q
+    my $error_id = "unknown";
+    my $error_text = $resp->status_line;
+    
+    if ($resp->content) {
+      my $json = from_json($resp->content);
+      if (exists $json->{error_id}) {
+        $error_id = $json->{error_id};
+      }
+      if (exists $json->{error_text}) {
+        $error_text = $json->{error_text};
+      }
+    }
+    print Dumper($resp); use Data::Dumper;
+    die "Failed to talk to ZXTM: $error_id: \"$error_text\"";
   }
 }
 
