@@ -1,0 +1,14 @@
+[% FOREACH pool IN pools.keys.sort %]
+  [% p = pools.$pool %]
+  [% name = pool %]
+  
+  [% IF p.interesting %]
+  <li>
+    <a target="_blank" href="[% zxtm.url %]/apps/zxtm/?name=[% name %]&section=Pools:Edit">[% name %]</a>
+    [% IF p.note %]
+      ( [% p.note %] )
+    [% END %]
+        [% INCLUDE nodes.tt nodes = p.info.properties.basic.nodes_table %]
+  </li>
+  [% END %]
+[% END %]

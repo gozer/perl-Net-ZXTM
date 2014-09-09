@@ -1,0 +1,6 @@
+[% PERL %]
+  $stash->set('now', scalar(localtime()));
+[% END %]
+<br/>
+<small>Powered by Foo on [% now %]</small>
+</BODY>

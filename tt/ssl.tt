@@ -1,0 +1,35 @@
+<table border=1>
+[% FOREACH cert IN certs.keys.sort %]
+  [% c = certs.$cert %]
+  [% IF c.status != "ok" %]
+
+  [% IF c.status == "expired" %]
+    [% color = "red" %]
+  [% ELSE %]
+    [% color = "orange" %]
+  [% END %]
+
+  <tr>
+    <td bgcolor="[% color %]">
+      [% c.status %]
+    </td>
+    <td bgcolor=lightgrey>
+      [% c.not_after %]
+    </td>
+    <td bgcolor=lightgrey>
+      <a target="_blank" href="[% zxtm.url %]/apps/zxtm/?name=[% cert %]&section=SSL%3ASSL%20Certs%3AEdit">[% cert %]</a>
+  [% IF c.note %]
+    ( [% c.note %] )
+  [% END %]
+    </td>
+  </tr>
+[% PERL %]
+  my $info = $stash->get('c');
+  my $dump = Dumper($info); use Data::Dumper;
+  $stash->set('dump',$dump);
+[% END %]
+<!-- Cert info: [% dump %] -->
+
+  [% END %]
+[% END %]
+</table>

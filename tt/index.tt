@@ -1,0 +1,11 @@
+[% INCLUDE header.tt %]
+<pre>[% invocation %]</pre>
+
+Traffic Managers (<a href="index.txt">Detailled Log</a>):
+<ol>
+[% FOREACH zxtm IN zxtms.keys.sort %]
+  [% INCLUDE zxtm.tt zxtm = zxtms.$zxtm, name = zxtm %]
+[% END %]
+</ol>
+
+[% INCLUDE footer.tt %]

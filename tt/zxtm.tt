@@ -1,0 +1,20 @@
+[% PERL %]
+ use URI;
+ my $uri = URI->new($stash->get('name'));
+ my $host = $uri->host;
+ $stash->set("hostname", $host);
+[% END %]
+
+<li><a target="_blank" href="[% zxtm.url %]">[% hostname %]</a>
+ <ul>
+  <li><img src="global-[% hostname %]-hourly_peak_bytes-daily.png"><img src="global-[% hostname %]-hourly_cpu-daily.png"></li>
+  <li>SSL Issues:
+      [% INCLUDE ssl.tt certs = zxtm.ssl %]
+  </li>
+  <li>Pool Issues:
+    <ul>
+      [% INCLUDE pool.tt pools = zxtm.pools %]
+    </ul>
+  </li>
+ </ul>
+</li>
