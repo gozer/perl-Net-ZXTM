@@ -68,7 +68,7 @@ foreach my $url (@ARGV) {
     my $web_url = URI->new($uri);
     $web_url->port(9090);
     $zxtms{$url} = {
-      url => $web_url,
+      url => $web_url->as_string(),
     };
 
     my $resp = $zxtm->call("/status");
@@ -167,6 +167,9 @@ my $tt_data = {
   zxtms => \%zxtms,
 };
 
+$tt->process('index.tt', $tt_data, 'index.html')
+               || die $tt->error(), "\n";
+
 use Storable;
 store $tt_data, 'zxtms.storable';
 
@@ -175,8 +178,6 @@ open (my $jdump, ">", "index.json");
 print $jdump encode_json($tt_data);
 close($jdump);
 
-$tt->process('index.tt', $tt_data, 'index.html')
-               || die $tt->error(), "\n";
 
 sub check_ssl {
     my $zxtm = shift;
