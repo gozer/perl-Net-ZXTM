@@ -25,41 +25,106 @@ use Template;
 my $tt = Template->new({
                INCLUDE_PATH => "$FindBin::Bin/../tt",  # or list ref
                INTERPOLATE  => 1,               # expand "$var" in plain text
-               POST_CHOMP   => 1,               # cleanup whitespace
+               TRIM         => 1,               # cleanup whitespace
                EVAL_PERL    => 1,               # evaluate Perl code blocks
            });
 
 use RRD::Simple ();
 
-#$RRD::Simple::DEBUG=1;
+$RRD::Simple::DEBUG=1;
 #
 
 my $invocation = join " ", ( '$>', $0, @ARGV);
 print "$invocation\n";
 
-my $rrd = RRD::Simple->new( default_dstype => "COUNTER", );
-
-my %rrd_default = (
-    ssl_cipher_encrypts => "COUNTER",
-    ssl_cipher_decrypts => "COUNTER",
-    total_conn          => "COUNTER",
-    total_requests      => "COUNTER",
-    sys_cpu_busy_percen => "GAUGE",
-    sys_cpu_idle_percen => "GAUGE",
-    hourly_peak_bytes_i => "GAUGE",
-    hourly_peak_bytes_o => "GAUGE",
-    
+my $rrd = RRD::Simple->new(
+  on_missing_ds => 'die',
 );
 
-#substr( $str, 0, 3 );
+#sub record_stats {
+#  my ($tm, $stats) = @_;
+#  
+#  my $rrd_file = "rrd/$tm.rrd";
+#  
+#  $rrd->create( $rrd_file, %rrd_default) if !-f $rrd_file;
+#  
+#  my %rrd_stats = rrd_truncate_hash(%$stats);
+#  
+#  #Limit stats to known ones
+#  # %rrd_stats = map { $_ => $rrd_stats{$_} } qw/hourly_peak_bytes_i hourly_peak_bytes_o/;
+#  
+#  foreach my $k (sort keys %rrd_stats) {
+#    print STDERR "RRD:$tm:$k:$rrd_stats{$k}\n";
+#  }
+#
+#  $rrd->update($rrd_file, %rrd_stats);
+#  
+#  local $RRD::Simple::DEBUG = 0;
+#  
+#  $rrd->graph(
+#    $rrd_file,
+#    destination => "graphs/",
+#    basename => "${tm}_hourly_peak_bytes",
+#    extended_legend => 1,
+#    sources => [qw(
+#      hourly_peak_bytes_i
+#      hourly_peak_bytes_o
+#    )],
+#    
+#    #Plot averages
+#    "VDEF:hourly_peak_bytes_oAVERAGE=hourly_peak_bytes_o,AVERAGE" => "",
+#    "HRULE:hourly_peak_bytes_oAVERAGE#00ff77:AverageOut" => "",
+#    "VDEF:hourly_peak_bytes_iAVERAGE=hourly_peak_bytes_i,AVERAGE" => "",
+#    "HRULE:hourly_peak_bytes_iAVERAGE#00ff77:AverageIn" => "",
+#  );
+#  
+#  $rrd->graph(
+#    $rrd_file,
+#    title => "CPU Utilization",
+#    destination => "graphs/",
+#    basename => "${tm}_hourly_cpu",
+#    extended_legend => 1,
+#    sources => [qw(
+#      sys_cpu_idle_percen
+#      sys_cpu_system_busy
+#      sys_cpu_user_busy_p
+#    )],
+#    source_labels => [
+#      "CPU Idle %",
+#      "CPU System Busy %",
+#      "CPU User Busy %",
+#    ],
+#  );
+#
+#  $rrd->graph(
+#    $rrd_file,
+#    title => "SSL Operations",
+#    destination => "graphs/",
+#    basename => "${tm}_encryption",
+#    extended_legend => 1,
+#    sources => [qw(
+#      ssl_cipher_encrypts
+#      ssl_cipher_decrypts
+#    )],
+#  );
+#  
+#  $rrd->graph(
+#    $rrd_file,
+#    title => "Total Usage",
+#    destination => "graphs/",
+#    basename => "${tm}_usage",
+#    extended_legend => 1,
+#    sources => [qw(
+#      total_conn
+#      total_requests
+#    )],
+#  );
+#}
 
 my %zxtms;
 foreach my $url (@ARGV) {
     my $uri  = URI->new($url);
     my $host = $uri->host;
-
-    my $rrdfile = "rrd/global-$host.rrd";
-    $rrd->create( $rrdfile, %rrd_default ) if !-f $rrdfile;
 
     my $zxtm = Net::ZXTM->new( $url, $ENV{ZXTM_USER}, $ENV{ZXTM_PASS} );
     
@@ -83,79 +148,39 @@ foreach my $url (@ARGV) {
 
     print "Info for $total_zxtm nodes cluster : " . $url . "\n";
 
-    my %total_stats;
-
-    foreach my $tm ( sort keys %zxtm ) {
-        my $info    = $zxtm->call("/status/$tm/information");
-        my $version = $info->{information}{tm_version};
-
-        my $global_stat =
-          $zxtm->call("/status/$tm/statistics/globals")->{statistics};
-
-        print " - $tm (v$version)\n";
-
-        $rrd->create( "rrd/$tm.rrd", %rrd_default ) if !-f "rrd/$tm.rrd";
-        $rrd->update( "rrd/$tm.rrd", %$global_stat );
-        foreach my $stat ( sort keys %$global_stat ) {
-            $total_stats{$stat} += $global_stat->{$stat};
-            output_stat( $stat, $global_stat->{$stat} );
-        }
-    }
-
-    print " - Cluster Total\n";
-    foreach my $stat ( sort keys %total_stats ) {
-
-        #Compute an average
-        if ( $stat =~ /^sys_cpu/ ) {
-            $total_stats{$stat} = int( $total_stats{$stat} / $total_zxtm );
-        }
-
-        output_stat( $stat, $total_stats{$stat} );
-    }
-
-    $rrd->update( $rrdfile, %total_stats );
-
-    $rrd->graph(
-        $rrdfile,
-        basename => "global-$host-hourly_peak_bytes",
-        sources  => [
-            qw(
-              hourly_peak_bytes_i
-              hourly_peak_bytes_o
-              )
-        ],
-    );
-    $rrd->graph(
-        $rrdfile,
-        basename => "global-$host-hourly_cpu",
-        sources  => [
-            qw(
-              sys_cpu_busy_percen
-              sys_cpu_idle_percen
-              )
-        ],
-    );
-    $rrd->graph(
-        $rrdfile,
-        basename => "global-$host-encryption",
-        sources  => [
-            qw(
-              ssl_cipher_encrypts
-              ssl_cipher_decrypts
-              )
-        ],
-    );
+#    my %total_stats;
+#
+#    foreach my $tm ( sort keys %zxtm ) {
+#        my $info    = $zxtm->call("/status/$tm/information");
+#        my $version = $info->{information}{tm_version};
+#
+#        my $global_stat =
+#          $zxtm->call("/status/$tm/statistics/globals")->{statistics};
+#
+#        print " - $tm (v$version)\n";
+#	
+#	#record_stats($tm, $global_stat);
+#	
+#        foreach my $stat ( sort keys %$global_stat ) {
+#            $total_stats{$stat} += $global_stat->{$stat};
+#            output_stat( $stat, $global_stat->{$stat} );
+#        }
+#    }
+#
+#    #record_stats("global-$host", \%total_stats);
+#
+#    print " - Cluster Total\n";
+#    foreach my $stat ( sort keys %total_stats ) {
+#
+#        #Compute an average
+#        if ( $stat =~ /^sys_cpu/ ) {
+#            $total_stats{$stat} = int( $total_stats{$stat} / $total_zxtm );
+#        }
+#
+#        output_stat( $stat, $total_stats{$stat} );
+#    }
+#    
     
-    $rrd->graph(
-        $rrdfile,
-        basename => "global-$host-total_conn_rec",
-        sources  => [
-            qw(
-              total_conn
-              total_requests
-              )
-        ],
-    );
 
     $zxtms{$url}{ssl}   = check_ssl($zxtm);
     $zxtms{$url}{pools} = check_pools($zxtm);
@@ -167,13 +192,13 @@ my $tt_data = {
   zxtms => \%zxtms,
 };
 
+print STDERR "Producing HTML\n";
 $tt->process('index.tt', $tt_data, 'index.html')
                || die $tt->error(), "\n";
 
 use Storable;
-store $tt_data, 'zxtms.storable';
+store $tt_data, 'index.storable';
 
-print STDERR "Writing out JSON\n";
 open (my $jdump, ">", "index.json");
 print $jdump encode_json($tt_data);
 close($jdump);
@@ -191,7 +216,7 @@ sub check_ssl {
         my $info = $zxtm->call("/config/active/ssl/server_keys/$name");
 
         $certs{$name}{note} = $info->{properties}{basic}{note};
-
+	
         my $x509 = Crypt::OpenSSL::X509->new_from_string(
             $info->{properties}{basic}{public} );
 
@@ -202,16 +227,24 @@ sub check_ssl {
         $certs{$name}{valid_soon} = !$x509->checkend( 60 * 60 * 24 * 30 );
         
 	my $status = "ok";
-        if ( !$certs{$name}{valid_now} or !$certs{$name}{valid_soon} ) {
+	
+        if (!$certs{$name}{valid_now} or !$certs{$name}{valid_soon}) {
             
-            if ( !$certs{$name}{valid_soon} ) {
+	    # Identify issues that have been already handled
+	    # NOWARN: in the notes or something that smells like a bugzilla bug id
+	    if ( $certs{$name}{note} =~ /NOWARN:/ or $certs{$name}{note} =~ /id=\d+/ ) {
+	      $status = "acknowledged";
+	    }
+            elsif ( !$certs{$name}{valid_now} ) {
+                $status = "expired";
+            }          
+	    elsif ( !$certs{$name}{valid_soon} ) {
                 $status = "expiring";
             }
-            if ( !$certs{$name}{valid_now} ) {
-                $status = "expired";
-            }
+
             print " * [$status] $name Expires on $certs{$name}{not_after}\n";
         }
+	
 	
 	$certs{$name}{status} = $status;
 	

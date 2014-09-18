@@ -7,7 +7,13 @@
 
 <li><a target="_blank" href="[% zxtm.url %]">[% hostname %]</a>
  <ul>
-  <li><img src="global-[% hostname %]-hourly_peak_bytes-daily.png"><img src="global-[% hostname %]-hourly_cpu-daily.png"></li>
+  <li>
+    <a href="graphs/global-[% hostname %]_cpu-daily.png"><img border=0 width=400 src="graphs/global-[% hostname %]_cpu-daily.png"></a>
+    <a href="graphs/global-[% hostname %]_ssl-daily.png"><img border=0 width=400 src="graphs/global-[% hostname %]_ssl-daily.png"></a>
+    <a href="graphs/global-[% hostname %]_sslcon-daily.png"><img border=0 width=400 src="graphs/global-[% hostname %]_sslcon-daily.png"></a>
+    <a href="graphs/global-[% hostname %]_traffic-daily.png"><img border=0 width=400 src="graphs/global-[% hostname %]_traffic-daily.png"></a>
+    <a href="graphs/global-[% hostname %]_hits-daily.png"><img border=0 width=400 src="graphs/global-[% hostname %]_hits-daily.png"></a>
+  </li>
   <li>SSL Issues:
       [% INCLUDE ssl.tt certs = zxtm.ssl %]
   </li>

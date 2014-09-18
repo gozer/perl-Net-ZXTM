@@ -2,6 +2,7 @@
 /.build/
 _build/
 cover_db/
+rrd/
 inc/
 Build
 !Build/
@@ -17,4 +18,6 @@ nytprof.out
 /pm_to_blib
 *.o
 *.bs
+graphs/
 Net-ZXTM-*
+index.*

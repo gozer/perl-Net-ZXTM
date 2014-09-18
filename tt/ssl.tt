@@ -9,6 +9,26 @@
     [% color = "orange" %]
   [% END %]
 
+  [% PERL %]
+    #XXX: Extract links in notes
+    use CGI qw(escapeHTML);
+    use URI::Find;
+
+    my $note = $stash->get('c.note');
+    
+    if ($note) {
+      my $finder = URI::Find->new(sub {
+        my($uri, $orig_uri) = @_;
+	print STDERR "XXX: Found $uri\n";
+        return qq|<a href="$uri">$orig_uri</a>|;
+      });
+      $finder->find(\$note, \&escapeHTML);
+      $stash->set('c.note', $note); 
+    }
+    
+  
+  [% END %]
+
   <tr>
     <td bgcolor="[% color %]">
       [% c.status %]
@@ -23,13 +43,6 @@
   [% END %]
     </td>
   </tr>
-[% PERL %]
-  my $info = $stash->get('c');
-  my $dump = Dumper($info); use Data::Dumper;
-  $stash->set('dump',$dump);
-[% END %]
-<!-- Cert info: [% dump %] -->
-
   [% END %]
 [% END %]
 </table>
