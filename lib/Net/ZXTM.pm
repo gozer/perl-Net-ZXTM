@@ -20,7 +20,7 @@ sub new {
         api_prefix => "",
     }, $class;
 
-    my $ua = LWP::UserAgent->new( keep_alive => 8);
+    my $ua = LWP::UserAgent->new( keep_alive => 8 );
 
     $ua->ssl_opts(
         verify_hostname => undef,
@@ -33,8 +33,8 @@ sub new {
     my $port = $uri->port;
 
     $ua->credentials(
-        "$host:$port",   "Stingray REST API", $username, $password,
-        
+        "$host:$port", "Stingray REST API", $username, $password,
+
     );
 
     $self->{ua} = $ua;
