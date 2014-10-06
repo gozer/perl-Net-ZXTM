@@ -5,14 +5,22 @@
  $stash->set("hostname", $host);
 [% END %]
 
-<li><a target="_blank" href="[% zxtm.url %]">[% hostname %]</a>
+<li><a target="_blank" href="[% zxtm.url %]">[% hostname %]</a>[% IF zxtm.config.security.ui_page_banner %] - [% zxtm.config.security.ui_page_banner %][% END %]
  <ul>
   <li>
-    <a href="graphs/global-[% hostname %]_cpu-daily.png"><img border=0 width=400 src="graphs/global-[% hostname %]_cpu-daily.png"></a>
-    <a href="graphs/global-[% hostname %]_ssl-daily.png"><img border=0 width=400 src="graphs/global-[% hostname %]_ssl-daily.png"></a>
-    <a href="graphs/global-[% hostname %]_sslcon-daily.png"><img border=0 width=400 src="graphs/global-[% hostname %]_sslcon-daily.png"></a>
-    <a href="graphs/global-[% hostname %]_traffic-daily.png"><img border=0 width=400 src="graphs/global-[% hostname %]_traffic-daily.png"></a>
-    <a href="graphs/global-[% hostname %]_hits-daily.png"><img border=0 width=400 src="graphs/global-[% hostname %]_hits-daily.png"></a>
+    <a href="graphs/global-[% hostname %]_cpu-weekly.png"><img border=0 width=400 src="graphs/global-[% hostname %]_cpu-daily.png"></a>
+    <a href="graphs/global-[% hostname %]_ssl-weekly.png"><img border=0 width=400 src="graphs/global-[% hostname %]_ssl-daily.png"></a>
+    <a href="graphs/global-[% hostname %]_sslcon-weekly.png"><img border=0 width=400 src="graphs/global-[% hostname %]_sslcon-daily.png"></a>
+    <a href="graphs/global-[% hostname %]_traffic-weekly.png"><img border=0 width=400 src="graphs/global-[% hostname %]_traffic-daily.png"></a>
+    <a href="graphs/global-[% hostname %]_hits-weekly.png"><img border=0 width=400 src="graphs/global-[% hostname %]_hits-daily.png"></a>
+    <a href="graphs/global-[% hostname %]_childs-weekly.png"><img border=0 width=400 src="graphs/global-[% hostname %]_childs-daily.png"></a>
+  </li>
+  <li>Members:
+    <ul>
+      [% FOREACH node IN zxtm.cluster_nodes.keys.sort %]
+        <li><a href="[% node %].html">[% node %]</a></li>
+      [% END %]
+    </ul>
   </li>
   <li>SSL Issues:
       [% INCLUDE ssl.tt certs = zxtm.ssl %]

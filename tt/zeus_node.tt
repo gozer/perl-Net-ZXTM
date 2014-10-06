@@ -1,0 +1,8 @@
+<h1>Details for [% name %]</h1>
+
+<a href="graphs/[% name %]_cpu-weekly.png"><img border=0 src="graphs/[% name %]_cpu-daily.png"></a>
+<a href="graphs/[% name %]_ssl-weekly.png"><img border=0 src="graphs/[% name %]_ssl-daily.png"></a>
+<a href="graphs/[% name %]_sslcon-weekly.png"><img border=0 src="graphs/[% name %]_sslcon-daily.png"></a>
+<a href="graphs/[% name %]_traffic-weekly.png"><img border=0 src="graphs/[% name %]_traffic-daily.png"></a>
+<a href="graphs/[% name %]_hits-weekly.png"><img border=0 src="graphs/[% name %]_hits-daily.png"></a>
+<a href="graphs/[% name %]_childs-weekly.png"><img border=0 src="graphs/[% name %]_childs-daily.png"></a>

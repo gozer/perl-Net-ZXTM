@@ -10,6 +10,8 @@ local $| = 1;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
+use Config::IniFiles;
+
 use JSON;
 
 use Net::ZXTM;
@@ -22,6 +24,12 @@ use Data::Dumper;
 
 use Template;
 
+my $cfg = Config::IniFiles->new( 
+  -file => "$FindBin::Bin/../zxtm.conf",
+  -fallback => "global",
+  -default => "global",
+) || die "Can't read zxtm.conf";
+
 my $tt = Template->new({
                INCLUDE_PATH => "$FindBin::Bin/../tt",  # or list ref
                INTERPOLATE  => 1,               # expand "$var" in plain text
@@ -29,100 +37,22 @@ my $tt = Template->new({
                EVAL_PERL    => 1,               # evaluate Perl code blocks
            });
 
-use RRD::Simple ();
-
-$RRD::Simple::DEBUG=1;
-#
-
 my $invocation = join " ", ( '$>', $0, @ARGV);
 print "$invocation\n";
 
-my $rrd = RRD::Simple->new(
-  on_missing_ds => 'die',
-);
-
-#sub record_stats {
-#  my ($tm, $stats) = @_;
-#  
-#  my $rrd_file = "rrd/$tm.rrd";
-#  
-#  $rrd->create( $rrd_file, %rrd_default) if !-f $rrd_file;
-#  
-#  my %rrd_stats = rrd_truncate_hash(%$stats);
-#  
-#  #Limit stats to known ones
-#  # %rrd_stats = map { $_ => $rrd_stats{$_} } qw/hourly_peak_bytes_i hourly_peak_bytes_o/;
-#  
-#  foreach my $k (sort keys %rrd_stats) {
-#    print STDERR "RRD:$tm:$k:$rrd_stats{$k}\n";
-#  }
-#
-#  $rrd->update($rrd_file, %rrd_stats);
-#  
-#  local $RRD::Simple::DEBUG = 0;
-#  
-#  $rrd->graph(
-#    $rrd_file,
-#    destination => "graphs/",
-#    basename => "${tm}_hourly_peak_bytes",
-#    extended_legend => 1,
-#    sources => [qw(
-#      hourly_peak_bytes_i
-#      hourly_peak_bytes_o
-#    )],
-#    
-#    #Plot averages
-#    "VDEF:hourly_peak_bytes_oAVERAGE=hourly_peak_bytes_o,AVERAGE" => "",
-#    "HRULE:hourly_peak_bytes_oAVERAGE#00ff77:AverageOut" => "",
-#    "VDEF:hourly_peak_bytes_iAVERAGE=hourly_peak_bytes_i,AVERAGE" => "",
-#    "HRULE:hourly_peak_bytes_iAVERAGE#00ff77:AverageIn" => "",
-#  );
-#  
-#  $rrd->graph(
-#    $rrd_file,
-#    title => "CPU Utilization",
-#    destination => "graphs/",
-#    basename => "${tm}_hourly_cpu",
-#    extended_legend => 1,
-#    sources => [qw(
-#      sys_cpu_idle_percen
-#      sys_cpu_system_busy
-#      sys_cpu_user_busy_p
-#    )],
-#    source_labels => [
-#      "CPU Idle %",
-#      "CPU System Busy %",
-#      "CPU User Busy %",
-#    ],
-#  );
-#
-#  $rrd->graph(
-#    $rrd_file,
-#    title => "SSL Operations",
-#    destination => "graphs/",
-#    basename => "${tm}_encryption",
-#    extended_legend => 1,
-#    sources => [qw(
-#      ssl_cipher_encrypts
-#      ssl_cipher_decrypts
-#    )],
-#  );
-#  
-#  $rrd->graph(
-#    $rrd_file,
-#    title => "Total Usage",
-#    destination => "graphs/",
-#    basename => "${tm}_usage",
-#    extended_legend => 1,
-#    sources => [qw(
-#      total_conn
-#      total_requests
-#    )],
-#  );
-#}
-
+# Clusters
 my %zxtms;
-foreach my $url (@ARGV) {
+
+# Nodes
+my %zxtm_nodes;
+
+foreach my $section ($cfg->Sections) {
+    next if $section eq 'global';
+   
+    my $url = $cfg->val($section, 'url');
+    my $username = $cfg->val($section, 'username', $ENV{ZXTM_USER});
+    my $password = $cfg->val($section, 'password', $ENV{ZXTM_PASS});
+
     my $uri  = URI->new($url);
     my $host = $uri->host;
 
@@ -140,61 +70,48 @@ foreach my $url (@ARGV) {
 
     my %zxtm;
 
+    my %stats;
     foreach my $zxtm (@$resp) {
         next if ( 'local_tm' eq $zxtm->{name} );
         $zxtm{ $zxtm->{name} } = 1;
+	$zxtm_nodes{$zxtm->{name}} = 1;
+	#my $stat =
+         # $zxtm->call("/status/$tm/statistics/globals")->{statistics};
+       # $stats{$tm} = $stat;
     }
+    
     my $total_zxtm = scalar keys %zxtm;
 
     print "Info for $total_zxtm nodes cluster : " . $url . "\n";
 
-#    my %total_stats;
-#
-#    foreach my $tm ( sort keys %zxtm ) {
-#        my $info    = $zxtm->call("/status/$tm/information");
-#        my $version = $info->{information}{tm_version};
-#
-#        my $global_stat =
-#          $zxtm->call("/status/$tm/statistics/globals")->{statistics};
-#
-#        print " - $tm (v$version)\n";
-#	
-#	#record_stats($tm, $global_stat);
-#	
-#        foreach my $stat ( sort keys %$global_stat ) {
-#            $total_stats{$stat} += $global_stat->{$stat};
-#            output_stat( $stat, $global_stat->{$stat} );
-#        }
-#    }
-#
-#    #record_stats("global-$host", \%total_stats);
-#
-#    print " - Cluster Total\n";
-#    foreach my $stat ( sort keys %total_stats ) {
-#
-#        #Compute an average
-#        if ( $stat =~ /^sys_cpu/ ) {
-#            $total_stats{$stat} = int( $total_stats{$stat} / $total_zxtm );
-#        }
-#
-#        output_stat( $stat, $total_stats{$stat} );
-#    }
-#    
-    
-
+    $zxtms{$url}{cluster_nodes} = \%zxtm;
+    $zxtms{$url}{config} = check_config($zxtm);
     $zxtms{$url}{ssl}   = check_ssl($zxtm);
     $zxtms{$url}{pools} = check_pools($zxtm);
+    
 }
 
+my $when = time;
 my $tt_data = {
-  when => time,
-  invocation => $invocation, 
+  when => $when,
+  invocation => $invocation,
   zxtms => \%zxtms,
 };
 
 print STDERR "Producing HTML\n";
+
 $tt->process('index.tt', $tt_data, 'index.html')
                || die $tt->error(), "\n";
+	       
+foreach my $zxtm_node (sort keys %zxtm_nodes) {
+  my $node_data = {
+    when => $when,
+    name => $zxtm_node,
+    invocation => $invocation,
+  };
+  $tt->process('zeus_node.tt', $node_data, "${zxtm_node}.html")
+               || die $tt->error(), "\n"; 
+}	       
 
 use Storable;
 store $tt_data, 'index.storable';
@@ -203,6 +120,16 @@ open (my $jdump, ">", "index.json");
 print $jdump encode_json($tt_data);
 close($jdump);
 
+
+sub check_config {
+  my $zxtm = shift;
+
+  #No checks yet
+  
+  my $global_config = $zxtm->call("/config/active/global_settings");
+
+  return $global_config->{properties}
+}
 
 sub check_ssl {
     my $zxtm = shift;
@@ -311,61 +238,6 @@ sub check_pools {
     
     return \%pools;
 }
-
-my %pretty_names = (
-    hourly_peak_bytes_in        => "Hourly Peak Bytes In",
-    hourly_peak_bytes_out       => "Hourly Peak Bytes Out",
-    hourly_peak_requests        => "Hourly Peak Requests",
-    hourly_peak_ssl_connections => "Hourly Peak SSL Connections",
-    sys_cpu_busy                => "CPU Busy",
-    sys_cpu_idle                => "CPU Idle",
-    sys_cpu_system_busy         => "CPU Syatem Busy",
-    sys_cpu_user_busy           => "CPU User Busy",
-    sys_mem_buffered            => "Memory Buffered",
-    sys_mem_free                => "Memory Free",
-    sys_mem_in_use              => "Memory Used",
-    sys_mem_swap_total          => "Swap Total",
-    sys_mem_swapped             => "Swap Used",
-    sys_mem_total               => "Memory Total",
-);
-
-sub output_stat {
-    my ( $stat, $stat_value ) = @_;
-
-    my $val;
-
-    if ( $stat =~ /peak/ ) {
-        $val = format_bytes($stat_value);
-
-        if ( $stat =~ /_per_second/ ) {
-            $stat =~ s/_per_second//;
-            $val .= "/s";
-        }
-    }
-
-    if ( $stat =~ /^sys_cpu/ ) {
-        $val = $stat_value;
-
-        if ( $stat =~ /_percent$/ ) {
-            $stat =~ s/_percent$//;
-            $val .= " %";
-        }
-    }
-
-    if ( $stat =~ /^sys_mem/ ) {
-        $val = format_bytes( $stat_value * 1024 * 1024 );
-    }
-
-    if ( $stat =~ /^ssl_cipher_(de|en)crypts/ ) {
-        $val = $stat_value;
-    }
-
-    if ($val) {
-        my $pretty = $pretty_names{$stat} || $stat;
-        print "    - $pretty: $val\n";
-    }
-}
-
 
 
 __END__

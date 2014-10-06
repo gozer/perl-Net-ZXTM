@@ -20,7 +20,7 @@ sub new {
         api_prefix => "",
     }, $class;
 
-    my $ua = LWP::UserAgent->new();
+    my $ua = LWP::UserAgent->new( keep_alive => 8);
 
     $ua->ssl_opts(
         verify_hostname => undef,
@@ -33,8 +33,8 @@ sub new {
     my $port = $uri->port;
 
     $ua->credentials(
-        "$host:$port",   "Stingray REST API",
-        $ENV{ZXTM_USER}, $ENV{ZXTM_PASS}
+        "$host:$port",   "Stingray REST API", $username, $password,
+        
     );
 
     $self->{ua} = $ua;
@@ -110,7 +110,7 @@ sub call {
         }
         print Dumper($resp);
         use Data::Dumper;
-        die "Failed to talk to ZXTM: $error_id: \"$error_text\"";
+        die "Failed to talk to ZXTM ($url): $error_id: \"$error_text\"";
     }
 }
 

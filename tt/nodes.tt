@@ -17,7 +17,7 @@
         my $port = $2;
         my $ip   = $1;
         my $reverse = gethostbyaddr( inet_aton($ip), AF_INET );
-        print STDERR "Reversing $ip\n";
+        #print STDERR "Reversing $ip\n";
         $fqdn = "$reverse($ip):$port" if $reverse;
       }
       $stash->set('fqdn', $fqdn);

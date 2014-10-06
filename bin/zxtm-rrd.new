@@ -1,0 +1,307 @@
+#!/usr/bin/env perl
+
+use strict;
+use RRD::Simple;
+ 
+use strict;
+use warnings;
+
+local $| = 1;
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+
+use Config::IniFiles;
+
+use Net::ZXTM;
+
+use Data::Dumper;
+
+#$RRD::Simple::DEBUG=1;
+$RRD::Simple::DEFAULT_DSTYPE = "COUNTER";
+
+use constant INTERVAL => 60;
+
+my $cfg = Config::IniFiles->new( 
+  -file => "$FindBin::Bin/../zxtm.conf",
+  -fallback => "global",
+  -default => "global",
+) || die "Can't read zxtm.conf";
+
+my %zxtms;
+
+#  total_bytes_in => "COUNTER",
+#  total_bytes_out => "COUNTER",
+#  total_conn => "COUNTER",
+#  total_requests => "COUNTER",
+#  total_transactions => "COUNTER",
+
+while (1) {
+my $start = time;
+#foreach my $url (@ARGV) {
+foreach my $section ($cfg->Sections) {
+   next if $section eq 'global';
+   
+    my $url = $cfg->val($section, 'url');
+    my $username = $cfg->val($section, 'username', $ENV{ZXTM_USER});
+    my $password = $cfg->val($section, 'password', $ENV{ZXTM_PASS});
+    
+    warn "Url: $url, u:$username p:$password";
+    
+    my $uri  = URI->new($url);
+    my $host = $uri->host;
+
+    my $zxtm = Net::ZXTM->new( $url, $username, $password);
+
+    my $resp = $zxtm->call("/status");
+
+    my %zxtm;
+    foreach my $zxtm (@$resp) {
+        next if ( 'local_tm' eq $zxtm->{name} );
+	my $rrd_path = "rrd/$zxtm->{name}.rrd";
+        my $rrd = RRD::Simple->new(
+	  cf => [qw(AVERAGE MIN MAX  LAST)],
+	  default_dstype => "COUNTER",
+	  file => $rrd_path
+	  );
+	$zxtm{$zxtm->{name}}{rrd} = $rrd;
+	if (! -f $rrd_path) {
+	  $rrd->create(
+	    "cpu_busy" => "GAUGE",
+	    "cpu_busy_sys" => "GAUGE",
+	    "cpu_busy_user" => "GAUGE",
+	    "cpu_idle" => "GAUGE",
+	    "data_memory_usage" => "GAUGE",
+	    "child_processes" => "GAUGE",
+	    "ssl_cipher_decrypts" => "COUNTER",
+	    "ssl_cipher_encrypts" => "COUNTER",
+	    "ssl_connections" => "COUNTER",
+	    "total_bytes_in" => "COUNTER",
+            "total_bytes_out" => "COUNTER",
+            "total_conn" => "COUNTER",
+            "total_requests" => "COUNTER",
+            "total_transactions" => "COUNTER",
+	  );
+	}
+    }
+    
+    my $total_zxtm = scalar keys %zxtm;
+
+    print "Info for $total_zxtm nodes cluster : " . $url . "\n";
+
+    my $now = time;
+    
+    my %stats;
+    
+    # Collect stats;
+    my %total;
+    foreach my $tm ( sort keys %zxtm ) {
+       my $stat =
+          $zxtm->call("/status/$tm/statistics/globals")->{statistics};
+       $stats{$tm} = $stat;
+       
+       # Aggregate cluster totals
+       foreach my $k (keys %$stat) {
+          $total{$k} += $stat->{$k};
+       }
+    }
+    
+    foreach my $k (keys %total) {
+      # Normalize percents
+      if ($k =~ /percent/) {
+        $total{$k} = $total{$k} / $total_zxtm;
+      }
+    }
+
+    # Inject synthetic total host, don't like duplication here
+    $stats{"global-$host"} = \%total;
+    my $rrd_path = "rrd/global/$host.rrd";
+    $zxtm{"global-$host"}{rrd} = RRD::Simple->new(
+      cf => [qw(AVERAGE MIN MAX  LAST)],
+      file => $rrd_path
+    );
+    if (! -f $rrd_path) {
+      $zxtm{"global-$host"}{rrd}->create(
+        "cpu_busy" => "GAUGE",
+        "cpu_idle" => "GAUGE",
+        "cpu_busy_sys" => "GAUGE",
+        "cpu_busy_user" => "GAUGE",
+	"child_processes" => "GAUGE",
+	"data_memory_usage" => "GAUGE",
+        "ssl_cipher_decrypts" => "COUNTER",
+        "ssl_cipher_encrypts" => "COUNTER",
+	"ssl_connections" => "COUNTER",
+        "total_bytes_in" => "COUNTER",
+        "total_bytes_out" => "COUNTER",
+        "total_conn" => "COUNTER",
+        "total_requests" => "COUNTER",
+        "total_transactions" => "COUNTER",
+      );
+    }
+    
+    # Update RRDs
+    foreach my $tm ( sort keys %zxtm ) {
+          my $stat = $stats{$tm};
+	  
+	  my $rrd = $zxtm{$tm}{rrd};
+          $rrd->update($now,
+	    cpu_busy => $stat->{sys_cpu_busy_percent},
+	    cpu_idle => $stat->{sys_cpu_idle_percent},
+	    cpu_busy_sys => $stat->{sys_cpu_system_busy_percent},
+	    cpu_busy_user => $stat->{sys_cpu_user_busy_percent},
+	    child_processes => $stat->{number_child_processes},
+	    data_memory_usage => $stat->{data_memory_usage},
+	    ssl_cipher_decrypts => $stat->{ssl_cipher_decrypts},
+	    ssl_cipher_encrypts => $stat->{ssl_cipher_encrypts},
+	    ssl_connections => $stat->{ssl_connections},
+            total_bytes_in => $stat->{total_bytes_in},
+            total_bytes_out => $stat->{total_bytes_out},
+            total_conn => $stat->{total_conn},
+            total_requests => $stat->{total_requests},
+            total_transactions => $stat->{total_transactions},
+	  ); 
+    }
+ }
+ 
+ my $now = time;
+ my $took = $now - $start;
+
+ if ($took >= INTERVAL) {
+   warn "Script taking too long: took $took seconds with an interval of " . INTERVAL . "\n";
+ }
+ else {
+   my $sleep = INTERVAL - $took;
+   print "Took $took seconds, so sleeping for the remaining $sleep\n";
+   sleep($sleep);
+ }
+
+ if ( -f "STOP" ) {
+   warn "XXX: Stop!";
+   exit;
+ }
+ 
+ if ( -M $0 < 0) {
+   my $now = localtime();
+   warn "Reload needed at $now, WAM!";
+   exec( $^X, $0, @ARGV);
+ }
+ 
+}
+
+# RRD has a max length of 19 for datasources, this is our map to avoid collisions
+my %rrd_collisions = (
+  hourly_peak_bytes_out_per_second => "h_peak_bytesout_ps",
+  hourly_peak_bytes_in_per_second  => "h_peak_bytesin_ps",
+  ssl_cipher_rsa_decrypts_external => "ssl_cipher_rsa_decx",
+  ssl_cipher_rsa_encrypts_external => "ssl_cipher_rsa_encx",
+  ssl_handshake_t_l_sv11           => "ssl_handshake_tls11",
+  ssl_handshake_t_l_sv1            => "ssl_handshake_tls1",
+  ssl_session_id_disk_cache_hit    => "ssls_d_cache_hit",
+  ssl_session_id_disk_cache_miss   => "ssls_d_cache_miss",
+  ssl_session_id_mem_cache_hit     => "ssls_m_cache_hit",
+  ssl_session_id_mem_cache_miss    => "ssls_m_cache_miss",
+);
+
+# Counters out of Zeus
+my %rrd_default = (
+  data_entries => "GAUGE",
+  data_memory_usage => "GAUGE",
+  events_seen => "COUNTER",
+  hourly_peak_bytes_in => "GAUGE",
+  hourly_peak_bytes_in_per_second => "GAUGE",
+  hourly_peak_bytes_out => "GAUGE",
+  hourly_peak_bytes_out_per_second => "GAUGE",
+  hourly_peak_requests_per_second => "GAUGE",
+  hourly_peak_ssl_connections_per_second => "GAUGE",
+  number_child_processes => "GAUGE",
+  number_dnsa_cache_hits => "COUNTER",
+  number_dnsa_requests => "COUNTER",
+  number_dnsptr_cache_hits => "COUNTER",
+  number_dnsptr_requests => "COUNTER",
+  number_snmp_bad_requests => "COUNTER",
+  number_snmp_get_bulk_requests => "COUNTER",
+  number_snmp_get_next_requests => "COUNTER",
+  number_snmp_get_requests => "COUNTER",
+  number_snmp_unauthorised_requests => "COUNTER",
+  num_idle_connections => "GAUGE",
+  ssl_cipher_3des_decrypts => "COUNTER",
+  ssl_cipher_3des_encrypts => "COUNTER",
+  ssl_cipher_aes_decrypts => "COUNTER",
+  ssl_cipher_aes_encrypts => "COUNTER",
+  ssl_cipher_decrypts => "COUNTER",
+  ssl_cipher_des_decrypts => "COUNTER",
+  ssl_cipher_des_encrypts => "COUNTER",
+  ssl_cipher_encrypts => "COUNTER",
+  ssl_cipher_rc4_decrypts => "COUNTER",
+  ssl_cipher_rc4_encrypts => "COUNTER",
+  ssl_cipher_rsa_decrypts => "COUNTER",
+  ssl_cipher_rsa_decrypts_external => "COUNTER",
+  ssl_cipher_rsa_encrypts => "COUNTER",
+  ssl_cipher_rsa_encrypts_external => "COUNTER",
+  ssl_client_cert_expired => "COUNTER",
+  ssl_client_cert_invalid => "COUNTER",
+  ssl_client_cert_not_sent => "COUNTER",
+  ssl_client_cert_revoked => "COUNTER",
+  ssl_connections => "COUNTER",
+  ssl_handshake_sslv2 => "COUNTER",
+  ssl_handshake_sslv3 => "COUNTER",
+  ssl_handshake_t_l_sv11 => "COUNTER",
+  ssl_handshake_t_l_sv1 => "COUNTER",
+  ssl_session_id_disk_cache_hit => "COUNTER",
+  ssl_session_id_disk_cache_miss => "COUNTER",
+  ssl_session_id_mem_cache_hit => "COUNTER",
+  ssl_session_id_mem_cache_miss => "COUNTER",
+  sys_cpu_busy_percent => "GAUGE",
+  sys_cpu_idle_percent => "GAUGE",
+  sys_cpu_system_busy_percent => "GAUGE",
+  sys_cpu_user_busy_percent => "GAUGE",
+  sys_fds_free => "GAUGE",
+  sys_mem_buffered => "GAUGE",
+  sys_mem_free => "GAUGE",
+  sys_mem_in_use => "GAUGE",
+  sys_mem_swapped => "GAUGE",
+  sys_mem_swap_total => "GAUGE",
+  sys_mem_total => "GAUGE",
+  time_last_config_update => "COUNTER",
+  total_backend_server_errors => "COUNTER",
+  total_bad_dns_packets => "COUNTER",
+  total_bytes_in => "COUNTER",
+  total_bytes_in_lo => "COUNTER",
+  total_bytes_in_hi => "COUNTER",
+  total_bytes_out => "COUNTER",
+  total_bytes_out_lo => "COUNTER",
+  total_bytes_out_hi => "COUNTER",
+  total_conn => "COUNTER",
+  total_current_conn => "COUNTER",
+  total_dns_responses => "COUNTER",
+  total_requests => "COUNTER",
+  total_transactions => "COUNTER",
+  up_time => "COUNTER",
+);
+
+%rrd_default = rrd_truncate_hash(%rrd_default);
+
+sub rrd_truncate_hash {
+  my %stats = @_;
+  
+  my %rrd_stats;
+  # RRD DS can't have more than 19 characters
+  foreach my $stat (sort keys %stats) {
+    my $value = $stats{$stat};
+    my $tstat = substr($stat,0,19);
+    
+    # Truncating collision
+    if ( exists $rrd_stats{$tstat} ) {
+       if ( exists $rrd_collisions{$stat}) {
+         $tstat = $rrd_collisions{$stat};
+       }
+       else {
+         die "Found colliding stat name $stat ($tstat)";
+       }
+    }
+    
+    $rrd_stats{$tstat} = $value;
+  }  
+  
+  return %rrd_stats;
+}

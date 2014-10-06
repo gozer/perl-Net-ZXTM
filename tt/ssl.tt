@@ -19,7 +19,6 @@
     if ($note) {
       my $finder = URI::Find->new(sub {
         my($uri, $orig_uri) = @_;
-	print STDERR "XXX: Found $uri\n";
         return qq|<a href="$uri">$orig_uri</a>|;
       });
       $finder->find(\$note, \&escapeHTML);

@@ -6,6 +6,23 @@
   <li>
     <a target="_blank" href="[% zxtm.url %]/apps/zxtm/?name=[% name %]&section=Pools:Edit">[% name %]</a>
     [% IF p.note %]
+    
+  [% PERL %]
+    #XXX: Extract links in notes
+    use CGI qw(escapeHTML);
+    use URI::Find;
+
+    my $note = $stash->get('p.note');
+    
+    if ($note) {
+      my $finder = URI::Find->new(sub {
+        my($uri, $orig_uri) = @_;
+        return qq|<a href="$uri">$orig_uri</a>|;
+      });
+      $finder->find(\$note, \&escapeHTML);
+      $stash->set('p.note', $note); 
+    }
+  [% END %]
       ( [% p.note %] )
     [% END %]
         [% INCLUDE nodes.tt nodes = p.info.properties.basic.nodes_table %]
