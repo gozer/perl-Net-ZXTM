@@ -22,3 +22,12 @@ nytprof.out
 graphs/
 Net-ZXTM-*
 index.*
+
+#XXX: Cleanup
+all.log
+graph.sh
+monitor.sh
+rrd.sh
+zxtm.conf
+zxtms.storable
+
