@@ -11,6 +11,8 @@ use LWP;
 use JSON;
 use IO::Socket::SSL qw(SSL_VERIFY_NONE);
 
+use Data::Dumper;
+
 sub new {
     my ( $class, $url, $username, $password ) = @_;
 
@@ -100,7 +102,7 @@ sub call {
         my $error_text = $resp->status_line;
 
         if ( $resp->content ) {
-            warn "Response is " . Dumper($resp);
+            warn "Response is " . Dump($resp);
 
             my $json = from_json( $resp->content );
             if ( exists $json->{error_id} ) {
