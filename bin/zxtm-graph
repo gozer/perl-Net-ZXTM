@@ -1,5 +1,7 @@
 #!/usr/bin/env perl
 
+#PODNAME: ZXTM Grapher
+
 use strict;
 use RRD::Simple;
  
@@ -42,7 +44,7 @@ foreach my $section ($cfg->Sections) {
     my $uri  = URI->new($url);
     my $host = $uri->host;
 
-    my $zxtm = Net::ZXTM->new( $url, $ENV{ZXTM_USER}, $ENV{ZXTM_PASS} );
+    my $zxtm = Net::ZXTM->new( $url, $username, $password);
 
     my $resp = $zxtm->call("/status");
 

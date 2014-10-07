@@ -22,7 +22,10 @@ sub new {
         api_prefix => "",
     }, $class;
 
-    my $ua = LWP::UserAgent->new( keep_alive => 8 );
+    my $ua = LWP::UserAgent->new(
+      timeout => 30,
+      keep_alive => 8,
+    );
 
     $ua->ssl_opts(
         verify_hostname => undef,
@@ -102,9 +105,14 @@ sub call {
         my $error_text = $resp->status_line;
 
         if ( $resp->content ) {
-            warn "Response is " . Dump($resp);
+            my $content_type = $resp->header('Content-type');
 
-            my $json = from_json( $resp->content );
+            my $json = {};
+
+            if ( $content_type eq 'text/json') {
+                eval { $json = from_json( $resp->content ); }
+            }
+
             if ( exists $json->{error_id} ) {
                 $error_id = $json->{error_id};
             }
@@ -112,7 +120,8 @@ sub call {
                 $error_text = $json->{error_text};
             }
         }
-        die "Failed to talk to ZXTM ($url): $error_id: \"$error_text\"";
+        warn "Failed to talk to ZXTM ($url): $error_id: \"$error_text\"";
+        return []; 
     }
 }
 

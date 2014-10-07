@@ -56,7 +56,7 @@ foreach my $section ($cfg->Sections) {
     my $uri  = URI->new($url);
     my $host = $uri->host;
 
-    my $zxtm = Net::ZXTM->new( $url, $ENV{ZXTM_USER}, $ENV{ZXTM_PASS} );
+    my $zxtm = Net::ZXTM->new( $url, $username, $password);
     
     #Remember each TM by its url for now
     #XXX: Cheat

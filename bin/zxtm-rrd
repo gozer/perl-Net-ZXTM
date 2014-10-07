@@ -1,5 +1,7 @@
 #!/usr/bin/env perl
 
+#PODNAME: ZXTM RRD Poller
+
 use strict;
 use RRD::Simple;
  
@@ -181,11 +183,15 @@ foreach my $section ($cfg->Sections) {
  if ( -M $0 < 0) {
    my $now = localtime();
    warn "Reload needed at $now, WAM!";
+   # Does this reset -M ?
    exec( $^X, $0, @ARGV);
  }
  
- if ( -M "zxtm.conf" < 0 ) {
-   $cfg->ReadConfig();
+ if ( -M "zxtm.conf" < -1 ) {
+   my $stat = -M "zxtm.conf";
+   warn "Reloading Config ($stat)";
+   #$cfg->ReadConfig();
+   exec( $^X, $0, @ARGV);
  }
  
 }
