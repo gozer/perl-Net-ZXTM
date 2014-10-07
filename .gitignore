@@ -30,4 +30,4 @@ monitor.sh
 rrd.sh
 zxtm.conf
 zxtms.storable
-
+*.spec
