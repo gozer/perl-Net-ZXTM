@@ -16,7 +16,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-BUILD
 <% $zilla->abstract %>
 
 %prep
-%setup -q
+%setup -q -n <% $zilla->name %>
 
 %build
 perl Makefile.PL
