@@ -100,6 +100,8 @@ sub call {
         my $error_text = $resp->status_line;
 
         if ( $resp->content ) {
+            warn "Response is " . Dumper($resp);
+
             my $json = from_json( $resp->content );
             if ( exists $json->{error_id} ) {
                 $error_id = $json->{error_id};
@@ -108,8 +110,6 @@ sub call {
                 $error_text = $json->{error_text};
             }
         }
-        print Dumper($resp);
-        use Data::Dumper;
         die "Failed to talk to ZXTM ($url): $error_id: \"$error_text\"";
     }
 }
