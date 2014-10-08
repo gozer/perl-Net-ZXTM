@@ -28,6 +28,7 @@ rm -rf %{buildroot}
 fi
 make install DESTDIR=%{buildroot}
 %{__mkdir_p} %{buildroot}/var/lib/zxtm/rrds
+%{__mkdir_p} %{buildroot}/var/lib/zxtm/rrds/global
 %{__mkdir_p} %{buildroot}/var/www/html/zxtm/graphs
 %{__mkdir_p} %{buildroot}/var/www/html/zxtm
 %{__mkdir_p} %{buildroot}/usr/share/zxtm/templates
