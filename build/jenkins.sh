@@ -17,7 +17,7 @@ dzil build
 perlbrew off
 eval $(perl -I ~/perl5/lib/perl5/ -Mlocal::lib=--deactivate)
 
-./rpmbuild *.tar.gz
+build/rpmbuild *.tar.gz
 mkdir -p rpms/SRPMS
 mkdir -p rpms/RPMS/noarch
 
