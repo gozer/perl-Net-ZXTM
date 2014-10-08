@@ -1,5 +1,7 @@
 graphs/
 rrd/
+rpms/
+html/
 \.html$
 zxtm.conf
 ^index\.
