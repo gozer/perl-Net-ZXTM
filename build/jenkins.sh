@@ -7,7 +7,7 @@ cpanm --local-lib=~/perl5 local::lib && eval $(perl -I ~/perl5/lib/perl5/ -Mloca
 cpanm Dist::Zilla
 
 dzil authordeps --missing | cpanm
-cpanm Test::Perl::Critic
+cpanm Test::Perl::Critic Archive::Tar::Wrapper
 
 dzil clean
 dzil test
