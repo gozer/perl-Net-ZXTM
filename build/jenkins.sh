@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -x
+
 perlbrew init
 source ~/perl5/perlbrew/etc/bashrc
 perlbrew install-cpanm
