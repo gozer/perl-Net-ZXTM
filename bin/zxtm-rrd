@@ -24,8 +24,17 @@ $RRD::Simple::DEFAULT_DSTYPE = "COUNTER";
 
 use constant INTERVAL => 60;
 
+my $config_file = "zxtm.conf";
+foreach my $cfg_dir (".", "$ENV{HOME}/zxtm", "/etc", "$FindBin::Bin/..") {
+ if (-f "$cfg_dir/$config_file") {
+     $config_file = "$cfg_dir/$config_file";
+     warn "Using config from $config_file";
+     last;
+ }
+}
+
 my $cfg = Config::IniFiles->new( 
-  -file => "$FindBin::Bin/../zxtm.conf",
+  -file => $config_file,
   -fallback => "global",
   -default => "global",
   -reloadwarn => 1,
