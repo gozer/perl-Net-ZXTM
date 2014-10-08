@@ -27,6 +27,11 @@ if [ "%{buildroot}" != "/" ] ; then
 rm -rf %{buildroot}
 fi
 make install DESTDIR=%{buildroot}
+%{__mkdir_p} %{buildroot}/var/lib/zxtm/rrds
+%{__mkdir_p} %{buildroot}/var/lib/zxtm/graphs
+%{__mkdir_p} %{buildroot}/etc
+cp zxtm-dist.conf %{buildroot}/etc/zxtm.conf
+
 find %{buildroot} | sed -e 's#%{buildroot}##' > %{_tmppath}/filelist
 
 %clean
@@ -36,3 +41,5 @@ fi
 
 %files -f %{_tmppath}/filelist
 %defattr(-,root,root)
+%attr(600, root, root) /etc/zxtm.conf
+%config /etc/zxtm.conf
