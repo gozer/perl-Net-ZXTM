@@ -43,6 +43,16 @@ my $cfg = Config::IniFiles->new(
   -default => "global",
 ) || die "Can't read zxtm.conf";
 
+use Cwd qw(getcwd);
+
+my $graph_dir = $cfg->val('global', 'graphs', getcwd());
+if (! -d $graph_dir) {
+  use File::Path qw(make_path);
+  make_path($graph_dir,
+    verbose => 1,
+  );
+}
+
 foreach my $section ($cfg->Sections) {
     next if $section eq 'global';
    
@@ -92,7 +102,7 @@ foreach my $section ($cfg->Sections) {
 	
         $rrd->graph(
 	  title => "$tm_name Load",
-	  destination => "graphs/",
+	  destination => $graph_dir,
 	  basename => "${tm}_cpu",
           sources => [ qw(cpu_busy_sys cpu_busy_user cpu_idle) ],
 	  source_labels => [ "System", "User", "Idle" ],
@@ -107,7 +117,7 @@ foreach my $section ($cfg->Sections) {
         );
         $rrd->graph(
 	  title => "$tm_name SSL",
-	  destination => "graphs/",
+	  destination => $graph_dir,
 	  basename => "${tm}_ssl",
           sources => [ qw(ssl_cipher_decrypts ssl_cipher_encrypts) ],
 	  source_labels => [ "ssl_decrypts", "ssl_encrypts" ],
@@ -120,7 +130,7 @@ foreach my $section ($cfg->Sections) {
         );
 	$rrd->graph(
 	  title => "$tm_name SSL Connections",
-	  destination => "graphs/",
+	  destination => $graph_dir,
 	  basename => "${tm}_sslcon",
           sources => [ qw(ssl_connections) ],
 	  source_labels => [ "ssl_connections" ],
@@ -132,7 +142,7 @@ foreach my $section ($cfg->Sections) {
 	
 	$rrd->graph(
 	  title => "$tm_name Traffic",
-	  destination => "graphs/",
+	  destination => $graph_dir,
 	  basename => "${tm}_traffic",
           sources => [ qw(total_bytes_in total_bytes_out) ],
 	  source_labels => [ "bytes_in", "bytes_out" ],
@@ -146,7 +156,7 @@ foreach my $section ($cfg->Sections) {
 
 	$rrd->graph(
 	  title => "$tm_name Hits",
-	  destination => "graphs/",
+	  destination => $graph_dir,
 	  basename => "${tm}_hits",
           sources => [ qw(total_conn total_requests) ],
 	  source_labels => [ "Connections", "Requests" ],
@@ -157,7 +167,7 @@ foreach my $section ($cfg->Sections) {
 	
 	$rrd->graph(
 	  title => "$tm_name Child Processes",
-	  destination => "graphs/",
+	  destination => $graph_dir,
 	  basename => "${tm}_childs",
           sources => [ qw(child_processes) ],
 	  source_labels => [ "Child Processes" ],
