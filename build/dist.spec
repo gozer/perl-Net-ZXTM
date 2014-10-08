@@ -1,6 +1,6 @@
 Name: perl-<% $zilla->name %>
 Version: <% (my $v = $zilla->version) =~ s/^v//; $v %>
-Release: 1
+Release: 1.<% $ENV{BUILD_NUMBER} || 1 %>
 
 Summary: <% $zilla->abstract %>
 License: GPL+ or Artistic
