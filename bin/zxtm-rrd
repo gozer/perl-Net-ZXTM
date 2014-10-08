@@ -10,6 +10,10 @@ use warnings;
 
 local $| = 1;
 
+use Log::Log4perl qw(:easy);
+
+use App::Daemon qw( daemonize );
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -24,11 +28,15 @@ $RRD::Simple::DEFAULT_DSTYPE = "COUNTER";
 
 use constant INTERVAL => 60;
 
+daemonize();
+
+#Log::Log4perl->easy_init($DEBUG);  # Set priority of root logger to INFO
+
 my $config_file = "zxtm.conf";
 foreach my $cfg_dir (".", "$ENV{HOME}/zxtm", "/etc", "$FindBin::Bin/..") {
  if (-f "$cfg_dir/$config_file") {
      $config_file = "$cfg_dir/$config_file";
-     warn "Using config from $config_file";
+     INFO("Using config from $config_file");
      last;
  }
 }
@@ -99,8 +107,8 @@ foreach my $section ($cfg->Sections) {
     
     my $total_zxtm = scalar keys %zxtm;
 
-    print "Info for $total_zxtm nodes cluster : " . $url . "\n";
-
+    INFO("Info for $total_zxtm nodes cluster : " . $url);
+    
     my $now = time;
     
     my %stats;
@@ -179,30 +187,12 @@ foreach my $section ($cfg->Sections) {
  my $took = $now - $start;
 
  if ($took >= INTERVAL) {
-   warn "Script taking too long: took $took seconds with an interval of " . INTERVAL . "\n";
+   WARN("Script taking too long: took $took seconds with an interval of " . INTERVAL);
  }
  else {
    my $sleep = INTERVAL - $took;
-   print "Took $took seconds, so sleeping for the remaining $sleep\n";
+   INFO("Took $took seconds, so sleeping for the remaining $sleep");
    sleep($sleep);
- }
-
- if ( -f "STOP" ) {
-   warn "XXX: Stop!";
-   exit;
- }
- 
- if ( -M $0 < 0) {
-   my $now = localtime();
-   warn "Reload needed at $now, WAM!";
-   # Does this reset -M ?
-   exec( $^X, $0, @ARGV);
- }
- 
- if ( -M $config_file < -1 ) {
-   my $stat = -M $config_file;
-   warn "Reloading Config $config_file ($stat)";
-   exec( $^X, $0, @ARGV);
  }
  
 }
