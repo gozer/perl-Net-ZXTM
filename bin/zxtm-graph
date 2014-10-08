@@ -45,7 +45,7 @@ my $cfg = Config::IniFiles->new(
 
 use Cwd qw(getcwd);
 
-my $graph_dir = $cfg->val('global', 'graphs', getcwd());
+my $graph_dir = $cfg->val('global', 'graphs', getcwd() . "/graphs");
 if (! -d $graph_dir) {
   use File::Path qw(make_path);
   make_path($graph_dir,

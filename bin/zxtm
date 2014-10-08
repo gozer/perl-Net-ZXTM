@@ -39,6 +39,15 @@ my $cfg = Config::IniFiles->new(
   -default => "global",
 ) || die "Can't read zxtm.conf";
 
+use Cwd qw(getcwd);
+my $html_dir = $cfg->val('global', 'html', getcwd());
+if (! -d $html_dir) {
+  use File::Path qw(make_path);
+  make_path($html_dir,
+    verbose => 1,
+  );
+}
+
 my $tt = Template->new({
                INCLUDE_PATH => "$FindBin::Bin/../tt",  # or list ref
                INTERPOLATE  => 1,               # expand "$var" in plain text
@@ -107,9 +116,9 @@ my $tt_data = {
   zxtms => \%zxtms,
 };
 
-print STDERR "Producing HTML\n";
+print STDERR "Producing HTML in $html_dir\n";
 
-$tt->process('index.tt', $tt_data, 'index.html')
+$tt->process('index.tt', $tt_data, "$html_dir/index.html")
                || die $tt->error(), "\n";
 	       
 foreach my $zxtm_node (sort keys %zxtm_nodes) {
@@ -118,17 +127,13 @@ foreach my $zxtm_node (sort keys %zxtm_nodes) {
     name => $zxtm_node,
     invocation => $invocation,
   };
-  $tt->process('zeus_node.tt', $node_data, "${zxtm_node}.html")
+  $tt->process('zeus_node.tt', $node_data, "$html_dir/${zxtm_node}.html")
                || die $tt->error(), "\n"; 
 }	       
 
-use Storable;
-store $tt_data, 'index.storable';
-
-open (my $jdump, ">", "index.json");
+open (my $jdump, ">", "$html_dir/index.json");
 print $jdump encode_json($tt_data);
 close($jdump);
-
 
 sub check_config {
   my $zxtm = shift;
