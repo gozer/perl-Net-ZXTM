@@ -33,8 +33,10 @@ make install DESTDIR=%{buildroot}
 %{__mkdir_p} %{buildroot}/var/www/html/zxtm
 %{__mkdir_p} %{buildroot}/usr/share/zxtm/templates
 %{__mkdir_p} %{buildroot}/etc
+%{__mkdir_p} %{buildroot}/etc/cron.d
 cp zxtm-dist.conf %{buildroot}/etc/zxtm.conf
 cp tt/* %{buildroot}/usr/share/zxtm/templates
+cp cron.d/* %{buildroot}/etc/cron.d
 
 find %{buildroot} | sed -e 's#%{buildroot}##' > %{_tmppath}/filelist
 

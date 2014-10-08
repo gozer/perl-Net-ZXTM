@@ -1,0 +1,5 @@
+# Produce graphs every 15 minutes
+*/15 * * * *	zxtm-graph
+
+# Monitor for problems every 10 minutes
+*/10  * * * *	zxtm
