@@ -30,8 +30,10 @@ make install DESTDIR=%{buildroot}
 %{__mkdir_p} %{buildroot}/var/lib/zxtm/rrds
 %{__mkdir_p} %{buildroot}/var/www/html/zxtm/graphs
 %{__mkdir_p} %{buildroot}/var/www/html/zxtm
+%{__mkdir_p} %{buildroot}/usr/share/zxtm/templates
 %{__mkdir_p} %{buildroot}/etc
 cp zxtm-dist.conf %{buildroot}/etc/zxtm.conf
+cp tt/* %{buildroot}/usr/share/zxtm/templates
 
 find %{buildroot} | sed -e 's#%{buildroot}##' > %{_tmppath}/filelist
 
@@ -42,5 +44,6 @@ fi
 
 %files -f %{_tmppath}/filelist
 %defattr(-,root,root)
-%attr(600, root, root) /etc/zxtm.conf
 %config /etc/zxtm.conf
+%attr(600, root, root) /etc/zxtm.conf
+
