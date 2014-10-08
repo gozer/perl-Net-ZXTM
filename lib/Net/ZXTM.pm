@@ -23,8 +23,8 @@ sub new {
     }, $class;
 
     my $ua = LWP::UserAgent->new(
-      timeout => 30,
-      keep_alive => 8,
+        timeout    => 30,
+        keep_alive => 8,
     );
 
     $ua->ssl_opts(
@@ -109,8 +109,8 @@ sub call {
 
             my $json = {};
 
-            if ( $content_type eq 'text/json') {
-                eval { $json = from_json( $resp->content ); }
+            if ( $content_type eq 'text/json' ) {
+                eval { $json = from_json( $resp->content ); };
             }
 
             if ( exists $json->{error_id} ) {
@@ -121,7 +121,7 @@ sub call {
             }
         }
         warn "Failed to talk to ZXTM ($url): $error_id: \"$error_text\"";
-        return []; 
+        return [];
     }
 }
 
