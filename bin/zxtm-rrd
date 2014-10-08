@@ -199,10 +199,9 @@ foreach my $section ($cfg->Sections) {
    exec( $^X, $0, @ARGV);
  }
  
- if ( -M "zxtm.conf" < -1 ) {
-   my $stat = -M "zxtm.conf";
-   warn "Reloading Config ($stat)";
-   #$cfg->ReadConfig();
+ if ( -M $config_file < -1 ) {
+   my $stat = -M $config_file;
+   warn "Reloading Config $config_file ($stat)";
    exec( $^X, $0, @ARGV);
  }
  
