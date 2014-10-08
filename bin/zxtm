@@ -48,8 +48,10 @@ if (! -d $html_dir) {
   );
 }
 
+my $tt_dir = $cfg->val('global', 'templates', "$FindBin::Bin/../tt");
+
 my $tt = Template->new({
-               INCLUDE_PATH => "$FindBin::Bin/../tt",  # or list ref
+               INCLUDE_PATH => $tt_dir,
                INTERPOLATE  => 1,               # expand "$var" in plain text
                TRIM         => 1,               # cleanup whitespace
                EVAL_PERL    => 1,               # evaluate Perl code blocks
