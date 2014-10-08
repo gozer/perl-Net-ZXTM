@@ -53,6 +53,8 @@ if (! -d $graph_dir) {
   );
 }
 
+my $rrd_dir = $cfg->val('global', 'rrds', getcwd() . "/rrd");
+
 foreach my $section ($cfg->Sections) {
     next if $section eq 'global';
    
@@ -70,7 +72,7 @@ foreach my $section ($cfg->Sections) {
     my %zxtm;
     foreach my $zxtm (@$resp) {
         next if ( 'local_tm' eq $zxtm->{name} );
-	my $rrd_path = "rrd/$zxtm->{name}.rrd";
+	my $rrd_path = "$rrd_dir/$zxtm->{name}.rrd";
         my $rrd = RRD::Simple->new(
 	  cf => [qw(AVERAGE MIN MAX  LAST)],
 	  default_dstype => "COUNTER",
@@ -86,7 +88,7 @@ foreach my $section ($cfg->Sections) {
     my $now = time;
 
     # Inject synthetic total host, don't like duplication here
-    my $rrd_path = "rrd/global/$host.rrd";
+    my $rrd_path = "$rrd_dir/global/$host.rrd";
     $zxtm{"global-$host"}{rrd} = RRD::Simple->new(
       cf => [qw(AVERAGE MIN MAX  LAST)],
       file => $rrd_path

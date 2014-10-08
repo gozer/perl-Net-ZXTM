@@ -40,6 +40,9 @@ my $cfg = Config::IniFiles->new(
   -reloadwarn => 1,
 ) || die "Can't read zxtm.conf";
 
+use Cwd qw(getcwd);
+my $rrd_dir = $cfg->val('global', 'rrds', getcwd() . "/rrd");
+
 my %zxtms;
 
 #  total_bytes_in => "COUNTER",
@@ -67,7 +70,7 @@ foreach my $section ($cfg->Sections) {
     my %zxtm;
     foreach my $zxtm (@$resp) {
         next if ( 'local_tm' eq $zxtm->{name} );
-	my $rrd_path = "rrd/$zxtm->{name}.rrd";
+	my $rrd_path = "$rrd_dir/$zxtm->{name}.rrd";
         my $rrd = RRD::Simple->new(
 	  cf => [qw(AVERAGE MIN MAX  LAST)],
 	  default_dstype => "COUNTER",
@@ -124,7 +127,7 @@ foreach my $section ($cfg->Sections) {
 
     # Inject synthetic total host, don't like duplication here
     $stats{"global-$host"} = \%total;
-    my $rrd_path = "rrd/global/$host.rrd";
+    my $rrd_path = "$rrd_dir/global/$host.rrd";
     $zxtm{"global-$host"}{rrd} = RRD::Simple->new(
       cf => [qw(AVERAGE MIN MAX  LAST)],
       file => $rrd_path
