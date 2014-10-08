@@ -7,7 +7,14 @@ set timeout 180
 spawn rpmbuild -ta --sign {*}$argv
 expect -exact "Enter pass phrase: "
 send -- "\r"
-expect eof
+expect {
+  eof {
+  }
+  timeout {
+    puts "Warning: Expect timeout"
+    exit 4
+  }
+}
   
 foreach {pid spawnid os_error_flag value} [wait] break
 
