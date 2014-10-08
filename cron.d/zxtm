@@ -2,4 +2,4 @@
 */15 * * * *	zxtm-graph
 
 # Monitor for problems every 10 minutes
-*/10  * * * *	zxtm
+*/10  * * * *	zxtm-monitor
