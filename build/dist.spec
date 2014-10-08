@@ -9,6 +9,7 @@ BuildArch: noarch
 URL: <% $zilla->license->url %>
 Vendor: <% $zilla->license->holder %>
 Source: <% $archive %>
+Requires: crontabs
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-BUILD
 
