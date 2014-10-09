@@ -75,7 +75,7 @@ fi
 
 %files
 %defattr(-,root,root)
-%doc README README.md CHANGES LICENSE
+%doc README README.md CHANGES LICENSE TODO
 %config(noreplace)  %attr(0700,root,root) %{_sysconfdir}/zxtm.conf
 %{perl_vendorlib}/*
 %{_mandir}/man?/*
