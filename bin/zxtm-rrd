@@ -28,15 +28,10 @@ $RRD::Simple::DEFAULT_DSTYPE = "COUNTER";
 
 use constant INTERVAL => 60;
 
-daemonize();
-
-#Log::Log4perl->easy_init($DEBUG);  # Set priority of root logger to INFO
-
 my $config_file = "zxtm.conf";
 foreach my $cfg_dir (".", "$ENV{HOME}/zxtm", "/etc", "$FindBin::Bin/..") {
  if (-f "$cfg_dir/$config_file") {
      $config_file = "$cfg_dir/$config_file";
-     INFO("Using config from $config_file");
      last;
  }
 }
@@ -46,7 +41,12 @@ my $cfg = Config::IniFiles->new(
   -fallback => "global",
   -default => "global",
   -reloadwarn => 1,
-) || die "Can't read zxtm.conf";
+) || LOGDIE "Can't read $config_file";
+
+# Drops privileges
+daemonize();
+
+INFO("Using config from $config_file");
 
 use Cwd qw(getcwd);
 my $rrd_dir = $cfg->val('global', 'rrds', getcwd() . "/rrd");
