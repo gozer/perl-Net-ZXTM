@@ -19,6 +19,7 @@ use Number::Format qw(:subs);
 use Time::Duration;
 use URI::Escape ();
 use Crypt::OpenSSL::X509;
+use URI::Find ();
 
 use Data::Dumper;
 
