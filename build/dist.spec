@@ -54,6 +54,25 @@ if [ "%{buildroot}" != "/" ] ; then
 rm -rf %{buildroot}
 fi
 
+%post
+/sbin/chkconfig --add zxtm-rrd
+
+%preun
+if [ $1 = 0 ]; then # package is being erased, not upgraded
+  /sbin/service zxtm-rrd stop > /dev/null 2>&1
+  /sbin/chkconfig --del zxtm-rrd
+fi
+
+%postun
+if [ $1 = 0 ]; then # package is being erased
+  # Any needed actions here on uninstalls
+else
+  # Upgrade
+  # XXX: Need conditional restart
+  /sbin/service zxtm-rrd stop  > /dev/null 2>&1
+  /sbin/service zxtm-rrd start > /dev/null 2>&1
+fi
+
 %files
 %defattr(-,root,root)
 %doc README README.md CHANGES LICENSE
