@@ -1,5 +1,20 @@
 #!/usr/bin/env perl
 
+#
+# zxtm-rrd          Start/Stop the ZXTM monitoring deamon
+#
+# chkconfig: 2345 90 60
+# description: this probes ZXTM load balancers and gathers metrics
+
+### BEGIN INIT INFO
+# Required-Start: $local_fs $syslog
+# Required-Stop: $local_fs $syslog
+# Default-Start:  2345
+# Default-Stop: 90
+# Short-Description: run zxtm-rrd daemon
+# Description: this probes ZXTM load balancers and gathers metrics
+### END INIT INFO
+
 #PODNAME: ZXTM RRD Poller
 
 use strict;
