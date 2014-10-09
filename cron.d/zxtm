@@ -1,7 +1,5 @@
-PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
-
 # Produce graphs every 15 minutes
-*/15 * * * *	zxtm-graph
+*/15 * * * *	root zxtm-graph
 
 # Monitor for problems every 10 minutes
-*/10  * * * *	zxtm-monitor
+*/10  * * * *	root zxtm-monitor
