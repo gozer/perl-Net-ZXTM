@@ -20,38 +20,53 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-BUILD
 %setup -q -n <% $zilla->name %>-%{version}
 
 %build
-perl Makefile.PL
+perl Makefile.PL INSTALLDIRS=vendor
 make test
 
 %install
 if [ "%{buildroot}" != "/" ] ; then
 rm -rf %{buildroot}
 fi
-make install DESTDIR=%{buildroot}
-%{__mkdir_p} %{buildroot}/var/lib/zxtm/rrds
-%{__mkdir_p} %{buildroot}/var/lib/zxtm/rrds/global
-%{__mkdir_p} %{buildroot}/var/www/html/zxtm/graphs
-%{__mkdir_p} %{buildroot}/var/www/html/zxtm
-%{__mkdir_p} %{buildroot}/usr/share/zxtm/templates
-%{__mkdir_p} %{buildroot}/etc
-%{__mkdir_p} %{buildroot}/etc/init.d
-%{__mkdir_p} %{buildroot}/etc/cron.d
-%{__mkdir_p} %{buildroot}/var/log/zxtm
 
-cp zxtm-dist.conf %{buildroot}/etc/zxtm.conf
-cp tt/* %{buildroot}/usr/share/zxtm/templates
-cp cron.d/* %{buildroot}/etc/cron.d
-ln -s /usr/local/bin/zxtm-rrd %{buildroot}/etc/init.d/zxtm-rrd
+make pure_install DESTDIR=%{buildroot}
 
-find %{buildroot} | sed -e 's#%{buildroot}##' > %{_tmppath}/filelist
+find $RPM_BUILD_ROOT -type f -name .packlist -exec rm -f {} \;
+
+%{_fixperms} $RPM_BUILD_ROOT/*
+
+%{__mkdir_p} %{buildroot}%{_sharedstatedir}/zxtm/rrds
+%{__mkdir_p} %{buildroot}%{_sharedstatedir}/zxtm/rrds/global
+%{__mkdir_p} %{buildroot}%{_localstatedir}/www/html/zxtm/graphs
+%{__mkdir_p} %{buildroot}%{_localstatedir}/www/html/zxtm
+%{__mkdir_p} %{buildroot}%{_datarootdir}/zxtm/templates
+%{__mkdir_p} %{buildroot}%{_sysconfdir}
+%{__mkdir_p} %{buildroot}%{_initddir}
+%{__mkdir_p} %{buildroot}%{_sysconfdir}/cron.d
+%{__mkdir_p} %{buildroot}%{_localstatedir}/log/zxtm
+
+cp zxtm-dist.conf %{buildroot}%{_sysconfdir}/zxtm.conf
+cp tt/* %{buildroot}%{_datarootdir}/zxtm/templates
+cp cron.d/* %{buildroot}%{_sysconfdir}/cron.d
+ln -s %{_bindir}/zxtm-rrd %{buildroot}%{_initddir}/zxtm-rrd
 
 %clean
 if [ "%{buildroot}" != "/" ] ; then
 rm -rf %{buildroot}
 fi
 
-%files -f %{_tmppath}/filelist
+%files
 %defattr(-,root,root)
-%config /etc/zxtm.conf
-%attr(600, root, root) /etc/zxtm.conf
-
+%doc README README.md CHANGES LICENSE
+%config(noreplace)  %attr(0700,root,root) %{_sysconfdir}/zxtm.conf
+%{perl_vendorlib}/*
+%{_mandir}/man?/*
+%{_datarootdir}/zxtm/templates
+%{_initddir}/zxtm-rrd
+%{_bindir}/zxtm-*
+%config(noreplace) %{_sysconfdir}/zxtm.conf
+%{_sysconfdir}/cron.d/zxtm
+%attr(0775,nobody,root) %{_sharedstatedir}/zxtm/rrds
+%attr(0775,nobody,root) %{_sharedstatedir}/zxtm/rrds/global
+%{_localstatedir}/www/html/zxtm
+%{_localstatedir}/www/html/zxtm/graphs
+%changelog
