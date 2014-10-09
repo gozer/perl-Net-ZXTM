@@ -1,7 +1,7 @@
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
 
 # Produce graphs every 15 minutes
-*/15 * * * *	root zxtm-graph
+*/15 * * * *	root zxtm-graph &> /var/log/zxtm/graph.log
 
 # Monitor for problems every 10 minutes
-*/10  * * * *	root zxtm-monitor
+*/10  * * * *	root zxtm-monitor &> /var/log/zxtm/monitor.log
