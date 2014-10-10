@@ -3,3 +3,4 @@
 * Convert remaining stuff to Log4Perl
 * ship logrotate
 * move deamon log to /var/log/zxtm/ like the rest
+* FIX: Use of uninitialized value $ENV{"HOME"} in concatenation (.) or string at /etc/init.d/zxtm-rrd line 47
