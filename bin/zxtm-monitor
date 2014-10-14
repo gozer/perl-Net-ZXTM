@@ -240,12 +240,12 @@ sub check_tigs {
       $tigs{$name}{status} = $mode;
     }
     
-    #XXX: Disabled for now, way too noisy, why soo many passive nodes?
-    my $check_for_slaves = 0;
+    #XXX: Should be configurable by cluster, way too noisy, why soo many passive nodes?
+    my $check_for_slaves = 1;
     if ($check_for_slaves && @$slaves) {
       $interesting++;
       $tigs{$name}{status} = "Passive nodes enabled";
-      push @problems, "Nodes @$slaves are passive";
+      push @problems, "Nodes " . join(" and ", @$slaves) . " are passive";
     }
     
     if (my @diff = array_diff(@nodes, @$machines)) {
