@@ -44,7 +44,12 @@ $RRD::Simple::DEFAULT_DSTYPE = "COUNTER";
 use constant INTERVAL => 60;
 
 my $config_file = "zxtm.conf";
-foreach my $cfg_dir (".", "$ENV{HOME}/zxtm", "/etc", "$FindBin::Bin/..") {
+
+my @dirs = (".");
+push @dirs, "$ENV{HOME}/zxtm" if exists $ENV{HOME};
+push @dirs, ("/etc/", "$FindBin::Bin/..");
+
+foreach my $cfg_dir (@dirs) {
  if (-f "$cfg_dir/$config_file") {
      $config_file = "$cfg_dir/$config_file";
      last;
