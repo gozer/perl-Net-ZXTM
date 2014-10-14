@@ -47,6 +47,7 @@ find $RPM_BUILD_ROOT -type f -name .packlist -exec rm -f {} \;
 cp zxtm-dist.conf %{buildroot}%{_sysconfdir}/zxtm.conf
 cp tt/* %{buildroot}%{_datarootdir}/zxtm/templates
 cp cron.d/* %{buildroot}%{_sysconfdir}/cron.d
+touch %{buildroot}%{_localstatedir}/log/zxtm/rrd.log
 ln -s %{_bindir}/zxtm-rrd %{buildroot}%{_initddir}/zxtm-rrd
 
 %clean
@@ -86,6 +87,7 @@ fi
 %{_sysconfdir}/cron.d/zxtm
 %attr(0775,nobody,root) %{_sharedstatedir}/zxtm/rrds
 %attr(0775,nobody,root) %{_sharedstatedir}/zxtm/rrds/global
+%attr(0640,nobody,root) %{_localstatedir}/log/zxtm/rrd.log
 %{_localstatedir}/www/html/zxtm
 %{_localstatedir}/www/html/zxtm/graphs
 %changelog

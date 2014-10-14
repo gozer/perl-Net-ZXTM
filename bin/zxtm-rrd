@@ -63,6 +63,15 @@ my $cfg = Config::IniFiles->new(
   -reloadwarn => 1,
 ) || LOGDIE "Can't read $config_file";
 
+if (my $loglevel = $cfg->val('global','loglevel')) {
+  my $logval = Log::Log4perl::Level::to_priority($loglevel);
+  $App::Daemon::loglevel =  $logval
+}
+
+if (my $logfile = $cfg->val('global','logfile')) {
+  $App::Daemon::logfile = $logfile;
+}
+
 # Drops privileges
 daemonize();
 
