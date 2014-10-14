@@ -107,6 +107,7 @@ foreach my $section ($cfg->Sections) {
 
     $zxtms{$url}{cluster_nodes} = \%zxtm;
     $zxtms{$url}{config} = check_config($zxtm);
+    $zxtms{$url}{tigs} = check_tigs($zxtm, $zxtms{$url});
     $zxtms{$url}{ssl}   = check_ssl($zxtm);
     $zxtms{$url}{pools} = check_pools($zxtm);
     
@@ -195,6 +196,80 @@ sub check_ssl {
     }
     
     return \%certs;
+}
+
+use Array::Utils qw(array_diff);
+
+sub check_tigs {
+  my ($zxtm, $cluster) = @_;
+  
+  print "** Checking Traffic IPs\n";
+  
+  my @nodes = sort keys $cluster->{cluster_nodes};
+    
+  my $tigs = $zxtm->call('/config/active/traffic_ip_groups');
+  
+  my %tigs;
+  foreach my $tig (@$tigs) {
+    my $name = $tig->{name};
+    
+    $tigs{$name}{info} = $zxtm->call("/config/active/traffic_ip_groups/$name");
+    
+    my $basic = $tigs{$name}{info}{properties}{basic};
+    
+    $tigs{$name}{note} = URI::Escape::uri_unescape($basic->{note});
+    
+    my $machines = $basic->{machines};
+    my $slaves = $basic->{slaves};
+    my $enabled = $basic->{enabled};
+    my $mode = $basic->{mode};
+    
+    my $interesting;
+    
+    my @problems;
+    
+    $tigs{$name}{status} = "ok";
+    
+    if (not $enabled) {
+      $interesting++;
+      $tigs{$name}{status} = "disabled";
+    }
+    
+    if ($mode ne 'singlehosted') {
+      $interesting++;
+      $tigs{$name}{status} = $mode;
+    }
+    
+    #XXX: Disabled for now, way too noisy, why soo many passive nodes?
+    my $check_for_slaves = 0;
+    if ($check_for_slaves && @$slaves) {
+      $interesting++;
+      $tigs{$name}{status} = "Passive nodes enabled";
+      push @problems, "Nodes @$slaves are passive";
+    }
+    
+    if (my @diff = array_diff(@nodes, @$machines)) {
+      $interesting++;
+      my $problem = "Missing nodes (" . join(",",@diff) .")";
+      push @problems, $problem;
+    }
+    
+    if (@problems) {
+      $tigs{$name}{interesting} = $interesting if $interesting;
+      $tigs{$name}{status} = "problems";
+      $tigs{$name}{problems} = \@problems;
+    }
+    
+    if ($interesting) {
+      print " * [$tigs{$name}{status}] $name ";
+      if (@problems) {
+        print join(',', @problems);
+      }
+      print "\n";
+    }
+  }
+
+  return \%tigs;
 }
 
 sub check_pools {

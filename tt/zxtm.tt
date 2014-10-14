@@ -25,6 +25,9 @@
   <li>SSL Issues:
       [% INCLUDE ssl.tt certs = zxtm.ssl %]
   </li>
+  <li>Traffic IPs Issues:
+      [% INCLUDE tig.tt tigs = zxtm.tigs %]
+  </li>
   <li>Pool Issues:
     <ul>
       [% INCLUDE pool.tt pools = zxtm.pools %]

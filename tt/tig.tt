@@ -1,0 +1,48 @@
+<table border=1>
+[% FOREACH tig IN tigs.keys.sort %]
+  [% t = tigs.$tig %]
+  [% IF t.interesting %]
+
+  [% IF t.status == "expired" %]
+    [% color = "red" %]
+  [% ELSE %]
+    [% color = "orange" %]
+  [% END %]
+
+  [% PERL %]
+    #XXX: Extract links in notes
+    use CGI qw(escapeHTML);
+    use URI::Find;
+
+    my $note = $stash->get('t.note');
+    
+    if ($note) {
+      my $finder = URI::Find->new(sub {
+        my($uri, $orig_uri) = @_;
+        return qq|<a href="$uri">$orig_uri</a>|;
+      });
+      $finder->find(\$note, \&escapeHTML);
+      $stash->set('t.note', $note); 
+    }
+  
+  [% END %]
+
+  <tr>
+    <td bgcolor="[% color %]">
+      [% t.status %]
+    </td>
+    <td bgcolor=lightgrey>
+      <a target="_blank" href="[% zxtm.url %]/apps/zxtm/?name=[% tig %]&section=Traffic%20IP%20Groups%3AEdit">[% tig %]</a>
+  [% IF t.note %]
+    ( [% t.note %] )
+  [% END %]
+    </td>
+    <td>
+       [% FOREACH problem IN t.problems %]
+         [% problem %] 
+       [% END %]
+    </td>
+  </tr>
+  [% END %]
+[% END %]
+</table>
