@@ -205,7 +205,7 @@ sub check_tigs {
   
   print "** Checking Traffic IPs\n";
   
-  my @nodes = sort keys $cluster->{cluster_nodes};
+  my @nodes = sort keys %{$cluster->{cluster_nodes}};
     
   my $tigs = $zxtm->call('/config/active/traffic_ip_groups');
   
