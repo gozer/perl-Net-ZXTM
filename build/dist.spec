@@ -59,19 +59,19 @@ fi
 /sbin/chkconfig --add zxtm-rrd
 
 %preun
-if [ $1 = 0 ]; then # package is being erased, not upgraded
+if [ $1 == 0 ]; then # package is being erased, not upgraded
   /sbin/service zxtm-rrd stop > /dev/null 2>&1
   /sbin/chkconfig --del zxtm-rrd
 fi
 
 %postun
-if [ $1 = 0 ]; then # package is being erased
+if [ $1 == 0 ]; then # package is being erased
   # Any needed actions here on uninstalls
+  /sbin/service zxtm-rrd stop  > /dev/null 2>&1
 else
   # Upgrade
   # XXX: Need conditional restart
-  /sbin/service zxtm-rrd stop  > /dev/null 2>&1
-  /sbin/service zxtm-rrd start > /dev/null 2>&1
+  /sbin/service zxtm-rrd status | grep -q yes && ( /sbin/service zxtm-rrd stop ; /sbin/service zxtm-rrd start ) > /dev/null 2>&1
 fi
 
 %files
