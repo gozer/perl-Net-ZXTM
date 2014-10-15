@@ -58,9 +58,6 @@ my $tt = Template->new({
                EVAL_PERL    => 1,               # evaluate Perl code blocks
            });
 
-my $invocation = join " ", ( '$>', $0, @ARGV);
-print "$invocation\n";
-
 # Clusters
 my %zxtms;
 
@@ -116,7 +113,7 @@ foreach my $section ($cfg->Sections) {
 my $when = time;
 my $tt_data = {
   when => $when,
-  invocation => $invocation,
+  version => Net::ZXTM->version(),
   zxtms => \%zxtms,
 };
 
@@ -129,7 +126,7 @@ foreach my $zxtm_node (sort keys %zxtm_nodes) {
   my $node_data = {
     when => $when,
     name => $zxtm_node,
-    invocation => $invocation,
+    version => Net::ZXTM->version(),
   };
   $tt->process('zeus_node.tt', $node_data, "$html_dir/${zxtm_node}.html")
                || die $tt->error(), "\n"; 

@@ -2,5 +2,5 @@
   $stash->set('now', scalar(localtime()));
 [% END %]
 <br/>
-<small>Powered by Foo on [% now %]</small>
+<small>Powered by Net::ZXTM ([% version %])  on [% now %]</small>
 </BODY>

@@ -1,5 +1,4 @@
 [% INCLUDE header.tt %]
-<pre>[% invocation %]</pre>
 
 Traffic Managers
 <ol>
