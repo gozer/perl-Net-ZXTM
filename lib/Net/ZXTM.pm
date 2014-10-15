@@ -28,11 +28,11 @@ sub new {
     );
 
     # Set SSL Options
-    if($ua->can('ssl_opts')) {
-      $ua->ssl_opts(
-          verify_hostname => undef,
-          SSL_verify_mode => SSL_VERIFY_NONE,
-      );
+    if ( $ua->can('ssl_opts') ) {
+        $ua->ssl_opts(
+            verify_hostname => undef,
+            SSL_verify_mode => SSL_VERIFY_NONE,
+        );
     }
 
     my $uri = URI->new($url);

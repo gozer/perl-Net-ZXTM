@@ -4,7 +4,7 @@
 
 use strict;
 use RRD::Simple;
- 
+
 use strict;
 use warnings;
 
@@ -29,58 +29,56 @@ my %zxtms;
 use Config::IniFiles;
 
 my $config_file = "zxtm.conf";
-foreach my $cfg_dir (".", "$ENV{HOME}/zxtm", "/etc", "$FindBin::Bin/..") {
- if (-f "$cfg_dir/$config_file") {
-     $config_file = "$cfg_dir/$config_file";
-     warn "Using config from $config_file";
-     last;
- }
+foreach my $cfg_dir ( ".", "$ENV{HOME}/zxtm", "/etc", "$FindBin::Bin/.." ) {
+    if ( -f "$cfg_dir/$config_file" ) {
+        $config_file = "$cfg_dir/$config_file";
+        warn "Using config from $config_file";
+        last;
+    }
 }
 
-my $cfg = Config::IniFiles->new( 
-  -file => $config_file,
-  -fallback => "global",
-  -default => "global",
+my $cfg = Config::IniFiles->new(
+    -file     => $config_file,
+    -fallback => "global",
+    -default  => "global",
 ) || die "Can't read zxtm.conf";
 
 use Cwd qw(getcwd);
 
-my $graph_dir = $cfg->val('global', 'graphs', getcwd() . "/graphs");
-if (! -d $graph_dir) {
-  use File::Path qw(make_path);
-  make_path($graph_dir,
-    verbose => 1,
-  );
+my $graph_dir = $cfg->val( 'global', 'graphs', getcwd() . "/graphs" );
+if ( !-d $graph_dir ) {
+    use File::Path qw(make_path);
+    make_path( $graph_dir, verbose => 1, );
 }
 
-my $rrd_dir = $cfg->val('global', 'rrds', getcwd() . "/rrd");
+my $rrd_dir = $cfg->val( 'global', 'rrds', getcwd() . "/rrd" );
 
-foreach my $section ($cfg->Sections) {
+foreach my $section ( $cfg->Sections ) {
     next if $section eq 'global';
-   
-    my $url = $cfg->val($section, 'url');
-    my $username = $cfg->val($section, 'username', $ENV{ZXTM_USER});
-    my $password = $cfg->val($section, 'password', $ENV{ZXTM_PASS});
-    
+
+    my $url      = $cfg->val( $section, 'url' );
+    my $username = $cfg->val( $section, 'username', $ENV{ZXTM_USER} );
+    my $password = $cfg->val( $section, 'password', $ENV{ZXTM_PASS} );
+
     my $uri  = URI->new($url);
     my $host = $uri->host;
 
-    my $zxtm = Net::ZXTM->new( $url, $username, $password);
+    my $zxtm = Net::ZXTM->new( $url, $username, $password );
 
     my $resp = $zxtm->call("/status");
 
     my %zxtm;
     foreach my $zxtm (@$resp) {
         next if ( 'local_tm' eq $zxtm->{name} );
-	my $rrd_path = "$rrd_dir/$zxtm->{name}.rrd";
-        my $rrd = RRD::Simple->new(
-	  cf => [qw(AVERAGE MIN MAX  LAST)],
-	  default_dstype => "COUNTER",
-	  file => $rrd_path
-	  );
-	$zxtm{$zxtm->{name}}{rrd} = $rrd;
+        my $rrd_path = "$rrd_dir/$zxtm->{name}.rrd";
+        my $rrd      = RRD::Simple->new(
+            cf             => [qw(AVERAGE MIN MAX  LAST)],
+            default_dstype => "COUNTER",
+            file           => $rrd_path
+        );
+        $zxtm{ $zxtm->{name} }{rrd} = $rrd;
     }
-    
+
     my $total_zxtm = scalar keys %zxtm;
 
     print "Info for $total_zxtm nodes cluster : " . $url . "\n";
@@ -90,94 +88,95 @@ foreach my $section ($cfg->Sections) {
     # Inject synthetic total host, don't like duplication here
     my $rrd_path = "$rrd_dir/global/$host.rrd";
     $zxtm{"global-$host"}{rrd} = RRD::Simple->new(
-      cf => [qw(AVERAGE MIN MAX  LAST)],
-      file => $rrd_path
+        cf   => [qw(AVERAGE MIN MAX  LAST)],
+        file => $rrd_path
     );
- 
+
     print STDERR "Producing graphs ...\n";
+
     # Produce graphs (Should be out of the loop)
     foreach my $tm ( sort keys %zxtm ) {
-    
+
         ( my $tm_name = $tm ) =~ s/\.mozilla\.com$//;
-    
+
         my $rrd = $zxtm{$tm}{rrd};
-	
+
         $rrd->graph(
-	  title => "$tm_name Load",
-	  destination => $graph_dir,
-	  basename => "${tm}_cpu",
-          sources => [ qw(cpu_busy_sys cpu_busy_user cpu_idle) ],
-	  source_labels => [ "System", "User", "Idle" ],
-	  source_colors => [ qw(ff0000 aa0000 aaaaff) ],
-	  source_drawtypes => [ qw(AREA STACK STACK) ],
-	  vertical_label => "% Load",
-	  extended_legend => 1,
-          "VDEF:cpu_busyAVERAGE=cpu_busy,AVERAGE" => "",
-          "HRULE:cpu_busyAVERAGE#0000aa:Average Busy" => "",
-          "VDEF:cpu_idleAVERAGE=cpu_idle,AVERAGE" => "",
-          "HRULE:cpu_idleAVERAGE#0000ff:Average Idle" => "",	  
+            title            => "$tm_name Load",
+            destination      => $graph_dir,
+            basename         => "${tm}_cpu",
+            sources          => [qw(cpu_busy_sys cpu_busy_user cpu_idle)],
+            source_labels    => [ "System", "User", "Idle" ],
+            source_colors    => [qw(ff0000 aa0000 aaaaff)],
+            source_drawtypes => [qw(AREA STACK STACK)],
+            vertical_label   => "% Load",
+            extended_legend  => 1,
+            "VDEF:cpu_busyAVERAGE=cpu_busy,AVERAGE"     => "",
+            "HRULE:cpu_busyAVERAGE#0000aa:Average Busy" => "",
+            "VDEF:cpu_idleAVERAGE=cpu_idle,AVERAGE"     => "",
+            "HRULE:cpu_idleAVERAGE#0000ff:Average Idle" => "",
         );
         $rrd->graph(
-	  title => "$tm_name SSL",
-	  destination => $graph_dir,
-	  basename => "${tm}_ssl",
-          sources => [ qw(ssl_cipher_decrypts ssl_cipher_encrypts) ],
-	  source_labels => [ "ssl_decrypts", "ssl_encrypts" ],
-	  vertical_label => "Ops/s",
-	  extended_legend => 1,
-          "VDEF:ssl_cipher_decryptsAVERAGE=ssl_cipher_decrypts,AVERAGE" => "",
-          "HRULE:ssl_cipher_decryptsAVERAGE#0000aa:Average Decrypts" => "",
-          "VDEF:ssl_cipher_encryptsAVERAGE=ssl_cipher_encrypts,AVERAGE" => "",
-          "HRULE:ssl_cipher_encryptsAVERAGE#0000ff:Average Encrypts" => "",	  
+            title           => "$tm_name SSL",
+            destination     => $graph_dir,
+            basename        => "${tm}_ssl",
+            sources         => [qw(ssl_cipher_decrypts ssl_cipher_encrypts)],
+            source_labels   => [ "ssl_decrypts", "ssl_encrypts" ],
+            vertical_label  => "Ops/s",
+            extended_legend => 1,
+            "VDEF:ssl_cipher_decryptsAVERAGE=ssl_cipher_decrypts,AVERAGE" => "",
+            "HRULE:ssl_cipher_decryptsAVERAGE#0000aa:Average Decrypts"    => "",
+            "VDEF:ssl_cipher_encryptsAVERAGE=ssl_cipher_encrypts,AVERAGE" => "",
+            "HRULE:ssl_cipher_encryptsAVERAGE#0000ff:Average Encrypts"    => "",
         );
-	$rrd->graph(
-	  title => "$tm_name SSL Connections",
-	  destination => $graph_dir,
-	  basename => "${tm}_sslcon",
-          sources => [ qw(ssl_connections) ],
-	  source_labels => [ "ssl_connections" ],
-	  vertical_label => "Conn/s",
-	  extended_legend => 1,
-          "VDEF:ssl_connectionsAVERAGE=ssl_connections,AVERAGE" => "",
-          "HRULE:ssl_connectionsAVERAGE#0000aa:Average Decrypts" => "",
-        );
-	
-	$rrd->graph(
-	  title => "$tm_name Traffic",
-	  destination => $graph_dir,
-	  basename => "${tm}_traffic",
-          sources => [ qw(total_bytes_in total_bytes_out) ],
-	  source_labels => [ "bytes_in", "bytes_out" ],
-	  vertical_label => "Bytes/s",
-	  extended_legend => 1,
-          "VDEF:total_bytes_inAVERAGE=total_bytes_in,AVERAGE" => "",
-          "HRULE:total_bytes_inAVERAGE#0000aa:Average Bytes In" => "",
-          "VDEF:total_bytes_outAVERAGE=total_bytes_out,AVERAGE" => "",
-          "HRULE:total_bytes_outAVERAGE#0000ff:Average Bytes Out" => "",	  
+        $rrd->graph(
+            title           => "$tm_name SSL Connections",
+            destination     => $graph_dir,
+            basename        => "${tm}_sslcon",
+            sources         => [qw(ssl_connections)],
+            source_labels   => ["ssl_connections"],
+            vertical_label  => "Conn/s",
+            extended_legend => 1,
+            "VDEF:ssl_connectionsAVERAGE=ssl_connections,AVERAGE"  => "",
+            "HRULE:ssl_connectionsAVERAGE#0000aa:Average Decrypts" => "",
         );
 
-	$rrd->graph(
-	  title => "$tm_name Hits",
-	  destination => $graph_dir,
-	  basename => "${tm}_hits",
-          sources => [ qw(total_conn total_requests) ],
-	  source_labels => [ "Connections", "Requests" ],
-	  extended_legend => 1,	  
-          "VDEF:total_requestsAVERAGE=total_requests,AVERAGE" => "",
-          "HRULE:total_requestsAVERAGE#0000aa:Average Requests" => "",
+        $rrd->graph(
+            title           => "$tm_name Traffic",
+            destination     => $graph_dir,
+            basename        => "${tm}_traffic",
+            sources         => [qw(total_bytes_in total_bytes_out)],
+            source_labels   => [ "bytes_in", "bytes_out" ],
+            vertical_label  => "Bytes/s",
+            extended_legend => 1,
+            "VDEF:total_bytes_inAVERAGE=total_bytes_in,AVERAGE"     => "",
+            "HRULE:total_bytes_inAVERAGE#0000aa:Average Bytes In"   => "",
+            "VDEF:total_bytes_outAVERAGE=total_bytes_out,AVERAGE"   => "",
+            "HRULE:total_bytes_outAVERAGE#0000ff:Average Bytes Out" => "",
         );
-	
-	$rrd->graph(
-	  title => "$tm_name Child Processes",
-	  destination => $graph_dir,
-	  basename => "${tm}_childs",
-          sources => [ qw(child_processes) ],
-	  source_labels => [ "Child Processes" ],
-	  extended_legend => 1,	  
-          "VDEF:child_processesAVERAGE=child_processes,AVERAGE" => "",
-          "HRULE:child_processesAVERAGE#0000aa:Average Children" => "",
+
+        $rrd->graph(
+            title           => "$tm_name Hits",
+            destination     => $graph_dir,
+            basename        => "${tm}_hits",
+            sources         => [qw(total_conn total_requests)],
+            source_labels   => [ "Connections", "Requests" ],
+            extended_legend => 1,
+            "VDEF:total_requestsAVERAGE=total_requests,AVERAGE"   => "",
+            "HRULE:total_requestsAVERAGE#0000aa:Average Requests" => "",
+        );
+
+        $rrd->graph(
+            title           => "$tm_name Child Processes",
+            destination     => $graph_dir,
+            basename        => "${tm}_childs",
+            sources         => [qw(child_processes)],
+            source_labels   => ["Child Processes"],
+            extended_legend => 1,
+            "VDEF:child_processesAVERAGE=child_processes,AVERAGE"  => "",
+            "HRULE:child_processesAVERAGE#0000aa:Average Children" => "",
         );
 
     }
- }
+}
 
