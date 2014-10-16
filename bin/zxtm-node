@@ -18,8 +18,6 @@ use Data::Dumper;
 
 use CHI;
 
-use Log::Any::Adapter ('Stderr');
-
 my $cfg = Net::ZXTM->configuration();
 
 my $cache = CHI->new( driver => 'File',
@@ -29,14 +27,13 @@ my $cache = CHI->new( driver => 'File',
 	expires_variance => 0.1,
     );
 
+CHI->stats->enable();
+
 my @nodes = @ARGV;
 
 my $nodes = get_nodes($cfg);
 
-sub get_nodes_cached {
-  return $cache->compute("nodes/3", undef, sub { get_nodes($cfg) });
-}
-
+#XXX: Injection for now
 sub Net::ZXTM::cached_call {
   my ($self, $api) = @_;
   
@@ -73,10 +70,7 @@ sub get_nodes {
       
       foreach my $node (@$nodes_table) {
         $node->{zxtm} = $url;
-      
         $nodes{$node->{node}}{zxtm}{$url}{pools}{$name} = $node;
-	
-	#$nodes{$node->{node}}{pools}{$name} = $node;
       }
       
     }
@@ -84,8 +78,6 @@ sub get_nodes {
   
   return \%nodes;
 }
-
-#print Dumper($nodes);
 
 foreach my $node (@nodes) {
   if (exists ($nodes->{$node})) {
@@ -117,6 +109,9 @@ sub print_info {
     }
   }
 }
+
+CHI->stats->flush();
+
 
 __END__
 
