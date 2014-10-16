@@ -32,8 +32,6 @@ use App::Daemon qw( daemonize );
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use Config::IniFiles;
-
 use Net::ZXTM;
 
 use Data::Dumper;
@@ -43,25 +41,7 @@ $RRD::Simple::DEFAULT_DSTYPE = "COUNTER";
 
 use constant INTERVAL => 60;
 
-my $config_file = "zxtm.conf";
-
-my @dirs = (".");
-push @dirs, "$ENV{HOME}/zxtm" if exists $ENV{HOME};
-push @dirs, ( "/etc/", "$FindBin::Bin/.." );
-
-foreach my $cfg_dir (@dirs) {
-    if ( -f "$cfg_dir/$config_file" ) {
-        $config_file = "$cfg_dir/$config_file";
-        last;
-    }
-}
-
-my $cfg = Config::IniFiles->new(
-    -file       => $config_file,
-    -fallback   => "global",
-    -default    => "global",
-    -reloadwarn => 1,
-) || LOGDIE "Can't read $config_file";
+my $cfg = Net::ZXTM->configuration();
 
 if ( my $loglevel = $cfg->val( 'global', 'loglevel' ) ) {
     my $logval = Log::Log4perl::Level::to_priority($loglevel);
@@ -74,8 +54,6 @@ if ( my $logfile = $cfg->val( 'global', 'logfile' ) ) {
 
 # Drops privileges
 daemonize();
-
-INFO("Using config from $config_file");
 
 use Cwd qw(getcwd);
 my $rrd_dir = $cfg->val( 'global', 'rrds', getcwd() . "/rrd" );
@@ -92,8 +70,11 @@ while (1) {
     my $start = time;
     foreach my $section ( $cfg->Sections ) {
         next if $section eq 'global';
-
-        my $url      = $cfg->val( $section, 'url' );
+	
+	# We specify all members of the cluster, but talk only to the first one (for now)
+	my @urls    = $cfg->val( $section, 'url' );
+	my $url    = $urls[0];
+	
         my $username = $cfg->val( $section, 'username', $ENV{ZXTM_USER} );
         my $password = $cfg->val( $section, 'password', $ENV{ZXTM_PASS} );
 

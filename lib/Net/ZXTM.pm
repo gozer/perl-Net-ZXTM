@@ -14,11 +14,18 @@ use IO::Socket::SSL qw(SSL_VERIFY_NONE);
 use Data::Dumper;
 use Config::IniFiles;
 
+use Log::Log4perl qw(:easy);
+
 use Carp;
 
 sub configuration {
   my $config_file = "zxtm.conf";
-  foreach my $cfg_dir ( ".", "$ENV{HOME}/zxtm", "/etc", "$FindBin::Bin/.." ) {
+  
+  my @dirs = (".");
+  push @dirs, "$ENV{HOME}/zxtm" if exists $ENV{HOME};
+  push @dirs, ( "/etc/", "$FindBin::Bin/.." );
+  
+  foreach my $cfg_dir ( @dirs ) {
     if ( -f "$cfg_dir/$config_file" ) {
         $config_file = "$cfg_dir/$config_file";
         carp "Using config from $config_file";

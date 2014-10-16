@@ -26,22 +26,7 @@ use constant INTERVAL => 60;
 
 my %zxtms;
 
-use Config::IniFiles;
-
-my $config_file = "zxtm.conf";
-foreach my $cfg_dir ( ".", "$ENV{HOME}/zxtm", "/etc", "$FindBin::Bin/.." ) {
-    if ( -f "$cfg_dir/$config_file" ) {
-        $config_file = "$cfg_dir/$config_file";
-        warn "Using config from $config_file";
-        last;
-    }
-}
-
-my $cfg = Config::IniFiles->new(
-    -file     => $config_file,
-    -fallback => "global",
-    -default  => "global",
-) || die "Can't read zxtm.conf";
+my $cfg = Net::ZXTM->configuration();
 
 use Cwd qw(getcwd);
 
@@ -55,8 +40,11 @@ my $rrd_dir = $cfg->val( 'global', 'rrds', getcwd() . "/rrd" );
 
 foreach my $section ( $cfg->Sections ) {
     next if $section eq 'global';
-
-    my $url      = $cfg->val( $section, 'url' );
+    
+    # We specify all members of the cluster, but talk only to the first one (for now)
+    my @urls    = $cfg->val( $section, 'url' );
+    my $url 	= $urls[0];
+    
     my $username = $cfg->val( $section, 'username', $ENV{ZXTM_USER} );
     my $password = $cfg->val( $section, 'password', $ENV{ZXTM_PASS} );
 
