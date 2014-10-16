@@ -19,12 +19,8 @@ nytprof.out
 *.o
 *.bs
 *.html
+*.log
 Net-ZXTM-*
 html/
-
-#XXX: Cleanup
-graph.sh
-monitor.sh
-rrd.sh
+cache/
 zxtm.conf
-*.spec
