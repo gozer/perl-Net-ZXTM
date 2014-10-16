@@ -13,6 +13,7 @@ use IO::Socket::SSL qw(SSL_VERIFY_NONE);
 
 use Data::Dumper;
 use Config::IniFiles;
+use Cache::FileCache;
 
 use Log::Log4perl qw(:easy);
 
@@ -43,12 +44,13 @@ sub configuration {
 }
 
 sub new {
-    my ( $class, $url, $username, $password ) = @_;
+    my ( $class, $url, $username, $password, $cfg ) = @_;
 
     my $self = bless {
         url        => $url,
         api        => $url,
         api_prefix => "",
+	config     => $cfg,
     }, $class;
 
     my $ua = LWP::UserAgent->new(
@@ -99,6 +101,16 @@ sub init {
         my $url = URI->new( $self->{url} . $api_href );
         $self->{api}        = $url->canonical;
         $self->{api_prefix} = $url->path;
+	
+	my $cfg = $self->{config};
+	my $cache = Cache::FileCache->new({
+          cache_root => $cfg->val('global','cache','cache'),
+	  namespace => 'Net::ZXTM',
+	  default_expires_in => $cfg->val('global','cache_expiry','60m'),
+	}); 
+	$self->{cache} = $cache;
+    
+	
     }
     else {
         die "Can't double-init!";
@@ -110,6 +122,19 @@ sub get {
 
     return $self->{ua}->get($url);
 }
+
+sub cache { shift->{cache} }
+
+sub cached_call {
+  my ($self, $api) = @_;
+  
+  my $cache = $self->cache;
+  
+  my $key = $self->{url} . $api;
+  
+  return $cache->compute( $key, undef, sub { $self->call($api) });
+}
+
 
 sub call {
     my ( $self, $call ) = @_;
@@ -157,6 +182,25 @@ sub call {
     }
 }
 
+
+use Socket;
+# returns the hostname for an ip, undef if passed a hostname
+# XXX: Doesn't really belong here, doesn't it?
+sub reverse_ip {
+  my ($self, $ip) = @_;
+  
+  my $cache = $self->cache;
+
+  my $reverse = $cache->compute("reverse_ip($ip)", undef, sub { gethostbyaddr( inet_aton($ip), AF_INET ) || "" });
+  
+  if (defined $reverse) {
+    # Return undef is reverse returned the same thing, most likely called with a hostname...
+    return $reverse eq $ip ? "" : $reverse;
+  }
+  else {
+    return "";
+  }
+}
 =head2 version
 
 prints current version to STDERR

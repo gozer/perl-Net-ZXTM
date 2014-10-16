@@ -16,15 +16,7 @@ use Net::ZXTM;
 
 use Data::Dumper;
 
-use Cache::FileCache;
-
 my $cfg = Net::ZXTM->configuration();
-
-my $cache = Cache::FileCache->new({
-        cache_root => $cfg->val('global','cache','cache'),
-	namespace => 'Net::ZXTM',
-	default_expires_in => $cfg->val('global','cache_expiry','60m'),
-    });
 
 my @nodes = @ARGV;
 
@@ -45,31 +37,6 @@ sub Cache::BaseCache::compute {
   return $val;
 }
 
-#XXX: Injection for now
-sub Net::ZXTM::cached_call {
-  my ($self, $api) = @_;
-  
-  my $key = $self->{url} . $api;
-  
-  return $cache->compute( $key, undef, sub { $self->call($api) });
-}
-
-use Socket;
-# returns the hostname for an ip, undef if passed a hostname
-sub reverse_ip {
-  my $ip = shift;
-
-  my $reverse = $cache->compute("reverse_ip($ip)", undef, sub { gethostbyaddr( inet_aton($ip), AF_INET ) || "" });
-  
-  if (defined $reverse) {
-    # Return undef is reverse returned the same thing, most likely called with a hostname...
-    return $reverse eq $ip ? "" : $reverse;
-  }
-  else {
-    return "";
-  }
-}
-
 sub get_nodes {
   my $cfg = shift;
   my %nodes;
@@ -86,7 +53,7 @@ sub get_nodes {
     my $uri  = URI->new($url);
     my $host = $uri->host;
 
-    my $zxtm = Net::ZXTM->new( $url, $username, $password );
+    my $zxtm = Net::ZXTM->new( $url, $username, $password, $cfg);
     
     my $pools = $zxtm->cached_call("/config/active/pools");
     
@@ -104,7 +71,7 @@ sub get_nodes {
 	
         $nodes{$host}{zxtm}{$url}{pools}{$name} = $node;
 	
-	if (my $reverse = reverse_ip($host)) {
+	if (my $reverse = $zxtm->reverse_ip($host)) {
 	  $nodes{$reverse}{zxtm}{$url}{pools}{$name} = $node;
 	}
       } 
@@ -122,10 +89,6 @@ foreach my $node (@nodes) {
 
 sub print_info {
   my ($node, $info) = @_;
- 
-  if ( my $reverse = reverse_ip($node)) {
-    $node = "$node ($reverse)";
-  }
   
   print "* $node\n";
   
