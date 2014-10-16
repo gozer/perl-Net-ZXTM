@@ -12,6 +12,28 @@ use JSON;
 use IO::Socket::SSL qw(SSL_VERIFY_NONE);
 
 use Data::Dumper;
+use Config::IniFiles;
+
+use Carp;
+
+sub configuration {
+  my $config_file = "zxtm.conf";
+  foreach my $cfg_dir ( ".", "$ENV{HOME}/zxtm", "/etc", "$FindBin::Bin/.." ) {
+    if ( -f "$cfg_dir/$config_file" ) {
+        $config_file = "$cfg_dir/$config_file";
+        carp "Using config from $config_file";
+        last;
+    }
+  }
+
+  my $cfg = Config::IniFiles->new(
+    -file     => $config_file,
+    -fallback => "global",
+    -default  => "global",
+  ) || die "Can't read zxtm.conf";
+  
+  return $cfg;
+}
 
 sub new {
     my ( $class, $url, $username, $password ) = @_;
