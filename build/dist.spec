@@ -67,13 +67,13 @@ test -e %rrdlogfile || {
 }
 
 %preun
-if [ $1 == 0 ]; then # package is being erased, not upgraded
+if [ "$1" == "0" ]; then # package is being erased, not upgraded
   /sbin/service zxtm-rrd stop > /dev/null 2>&1
   /sbin/chkconfig --del zxtm-rrd
 fi
 
 %postun
-if [ $1 == 0 ]; then # package is being erased
+if [ "$1" == "0" ]; then # package is being erased
   # Any needed actions here on uninstalls
   /sbin/service zxtm-rrd stop  > /dev/null 2>&1
 else
