@@ -27,8 +27,6 @@ my $cache = CHI->new( driver => 'File',
 	expires_variance => 0.1,
     );
 
-CHI->stats->enable();
-
 my @nodes = @ARGV;
 
 my $nodes = get_nodes($cfg);
@@ -109,9 +107,6 @@ sub print_info {
     }
   }
 }
-
-CHI->stats->flush();
-
 
 __END__
 
