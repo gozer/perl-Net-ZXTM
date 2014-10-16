@@ -24,99 +24,99 @@ my $nodes = get_nodes($cfg);
 
 #XXX: Inject, CHI-style
 sub Cache::BaseCache::compute {
-  my ($self, $key, $expiry, $sub) = @_;
- 
-  my $val = $self->get($key);
- 
-  if (defined $val) {
+    my ( $self, $key, $expiry, $sub ) = @_;
+
+    my $val = $self->get($key);
+
+    if ( defined $val ) {
+        return $val;
+    }
+
+    $val = $sub->();
+    $self->set( $key, $val, $expiry );
     return $val;
-  }
-  
-  $val = $sub->();
-  $self->set($key, $val, $expiry);
-  return $val;
 }
 
 sub get_nodes {
-  my $cfg = shift;
-  my %nodes;
-  foreach my $section ( $cfg->Sections ) {
-    next if $section eq 'global';
+    my $cfg = shift;
+    my %nodes;
+    foreach my $section ( $cfg->Sections ) {
+        next if $section eq 'global';
 
-    # We specify all members of the cluster, but talk only to the first one (for now)
-    my @urls    = $cfg->val( $section, 'url' );
-    my $url 	= $urls[0];
-    
-    my $username = $cfg->val( $section, 'username', $ENV{ZXTM_USER} );
-    my $password = $cfg->val( $section, 'password', $ENV{ZXTM_PASS} );
+# We specify all members of the cluster, but talk only to the first one (for now)
+        my @urls = $cfg->val( $section, 'url' );
+        my $url = $urls[0];
 
-    my $uri  = URI->new($url);
-    my $host = $uri->host;
+        my $username = $cfg->val( $section, 'username', $ENV{ZXTM_USER} );
+        my $password = $cfg->val( $section, 'password', $ENV{ZXTM_PASS} );
 
-    my $zxtm = Net::ZXTM->new( $url, $username, $password, $cfg);
-    
-    my $pools = $zxtm->cached_call("/config/active/pools");
-    
-    foreach my $p (@$pools) {
-      my $name = $p->{name};
-      my $pool = $zxtm->cached_call("/config/active/pools/$name");
-      
-      my $nodes_table = $pool->{properties}{basic}{nodes_table};
-      
-      foreach my $node (@$nodes_table) {
-        my ($host, $port) = split(':', $node->{node});
-        
-	$node->{zxtm} = $url;
-	$node->{port} = $port;
-	
-        $nodes{$host}{zxtm}{$url}{pools}{$name} = $node;
-	
-	if (my $reverse = $zxtm->reverse_ip($host)) {
-	  $nodes{$reverse}{zxtm}{$url}{pools}{$name} = $node;
-	}
-      } 
+        my $uri  = URI->new($url);
+        my $host = $uri->host;
+
+        my $zxtm = Net::ZXTM->new( $url, $username, $password, $cfg );
+
+        my $pools = $zxtm->cached_call("/config/active/pools");
+
+        foreach my $p (@$pools) {
+            my $name = $p->{name};
+            my $pool = $zxtm->cached_call("/config/active/pools/$name");
+
+            my $nodes_table = $pool->{properties}{basic}{nodes_table};
+
+            foreach my $node (@$nodes_table) {
+                my ( $host, $port ) = split( ':', $node->{node} );
+
+                $node->{zxtm} = $url;
+                $node->{port} = $port;
+
+                $nodes{$host}{zxtm}{$url}{pools}{$name} = $node;
+
+                if ( my $reverse = $zxtm->reverse_ip($host) ) {
+                    $nodes{$reverse}{zxtm}{$url}{pools}{$name} = $node;
+                }
+            }
+        }
     }
-  }
-  
-  return \%nodes;
+
+    return \%nodes;
 }
 
 foreach my $node (@nodes) {
-  if (exists ($nodes->{$node})) {
-    print_info($node, $nodes->{$node});
-  }
+    if ( exists( $nodes->{$node} ) ) {
+        print_info( $node, $nodes->{$node} );
+    }
 }
 
 sub print_info {
-  my ($node, $info) = @_;
-  
-  print "* $node\n";
-  
-  my $zxtms = $info->{zxtm};
-  
-  foreach my $zxtm (sort keys %$zxtms) {
-    my $z = $zxtms->{$zxtm};
-    print " [zxtm $zxtm] \n";
-    
-    my $pools = $z->{pools};
-    foreach my $pool ( sort keys %$pools) {
-      my $p = $pools->{$pool};
-      
-      my $port = $p->{port};
-      
-      if ( my $port_name = getservbyport($port, "tcp")) {
-        $port = "$port_name/$port";
-      }
-      
-      my $state = $p->{state};
-      my $weight = $p->{weight};
-      
-      print "  [pool $pool]\n";
-      print "    port $port\n";
-      print "    state $state\n";
-      print "    weight $weight\n" if defined $weight;
+    my ( $node, $info ) = @_;
+
+    print "* $node\n";
+
+    my $zxtms = $info->{zxtm};
+
+    foreach my $zxtm ( sort keys %$zxtms ) {
+        my $z = $zxtms->{$zxtm};
+        print " [zxtm $zxtm] \n";
+
+        my $pools = $z->{pools};
+        foreach my $pool ( sort keys %$pools ) {
+            my $p = $pools->{$pool};
+
+            my $port = $p->{port};
+
+            if ( my $port_name = getservbyport( $port, "tcp" ) ) {
+                $port = "$port_name/$port";
+            }
+
+            my $state  = $p->{state};
+            my $weight = $p->{weight};
+
+            print "  [pool $pool]\n";
+            print "    port $port\n";
+            print "    state $state\n";
+            print "    weight $weight\n" if defined $weight;
+        }
     }
-  }
 }
 
 __END__

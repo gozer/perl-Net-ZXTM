@@ -40,11 +40,11 @@ my $rrd_dir = $cfg->val( 'global', 'rrds', getcwd() . "/rrd" );
 
 foreach my $section ( $cfg->Sections ) {
     next if $section eq 'global';
-    
-    # We specify all members of the cluster, but talk only to the first one (for now)
-    my @urls    = $cfg->val( $section, 'url' );
-    my $url 	= $urls[0];
-    
+
+# We specify all members of the cluster, but talk only to the first one (for now)
+    my @urls = $cfg->val( $section, 'url' );
+    my $url = $urls[0];
+
     my $username = $cfg->val( $section, 'username', $ENV{ZXTM_USER} );
     my $password = $cfg->val( $section, 'password', $ENV{ZXTM_PASS} );
 

@@ -20,27 +20,27 @@ use Log::Log4perl qw(:easy);
 use Carp;
 
 sub configuration {
-  my $config_file = "zxtm.conf";
-  
-  my @dirs = (".");
-  push @dirs, "$ENV{HOME}/zxtm" if exists $ENV{HOME};
-  push @dirs, ( "/etc/", "$FindBin::Bin/.." );
-  
-  foreach my $cfg_dir ( @dirs ) {
-    if ( -f "$cfg_dir/$config_file" ) {
-        $config_file = "$cfg_dir/$config_file";
-        carp "Using config from $config_file";
-        last;
-    }
-  }
+    my $config_file = "zxtm.conf";
 
-  my $cfg = Config::IniFiles->new(
-    -file     => $config_file,
-    -fallback => "global",
-    -default  => "global",
-  ) || die "Can't read zxtm.conf";
-  
-  return $cfg;
+    my @dirs = (".");
+    push @dirs, "$ENV{HOME}/zxtm" if exists $ENV{HOME};
+    push @dirs, ( "/etc/", "$FindBin::Bin/.." );
+
+    foreach my $cfg_dir (@dirs) {
+        if ( -f "$cfg_dir/$config_file" ) {
+            $config_file = "$cfg_dir/$config_file";
+            carp "Using config from $config_file";
+            last;
+        }
+    }
+
+    my $cfg = Config::IniFiles->new(
+        -file     => $config_file,
+        -fallback => "global",
+        -default  => "global",
+    ) || die "Can't read zxtm.conf";
+
+    return $cfg;
 }
 
 sub new {
@@ -50,7 +50,7 @@ sub new {
         url        => $url,
         api        => $url,
         api_prefix => "",
-	config     => $cfg,
+        config     => $cfg,
     }, $class;
 
     my $ua = LWP::UserAgent->new(
@@ -101,16 +101,18 @@ sub init {
         my $url = URI->new( $self->{url} . $api_href );
         $self->{api}        = $url->canonical;
         $self->{api_prefix} = $url->path;
-	
-	my $cfg = $self->{config};
-	my $cache = Cache::FileCache->new({
-          cache_root => $cfg->val('global','cache','cache'),
-	  namespace => 'Net::ZXTM',
-	  default_expires_in => $cfg->val('global','cache_expiry','60m'),
-	}); 
-	$self->{cache} = $cache;
-    
-	
+
+        my $cfg   = $self->{config};
+        my $cache = Cache::FileCache->new(
+            {
+                cache_root => $cfg->val( 'global', 'cache', 'cache' ),
+                namespace  => 'Net::ZXTM',
+                default_expires_in =>
+                  $cfg->val( 'global', 'cache_expiry', '60m' ),
+            }
+        );
+        $self->{cache} = $cache;
+
     }
     else {
         die "Can't double-init!";
@@ -126,15 +128,14 @@ sub get {
 sub cache { shift->{cache} }
 
 sub cached_call {
-  my ($self, $api) = @_;
-  
-  my $cache = $self->cache;
-  
-  my $key = $self->{url} . $api;
-  
-  return $cache->compute( $key, undef, sub { $self->call($api) });
-}
+    my ( $self, $api ) = @_;
 
+    my $cache = $self->cache;
+
+    my $key = $self->{url} . $api;
+
+    return $cache->compute( $key, undef, sub { $self->call($api) } );
+}
 
 sub call {
     my ( $self, $call ) = @_;
@@ -182,25 +183,28 @@ sub call {
     }
 }
 
-
 use Socket;
+
 # returns the hostname for an ip, undef if passed a hostname
 # XXX: Doesn't really belong here, doesn't it?
 sub reverse_ip {
-  my ($self, $ip) = @_;
-  
-  my $cache = $self->cache;
+    my ( $self, $ip ) = @_;
 
-  my $reverse = $cache->compute("reverse_ip($ip)", undef, sub { gethostbyaddr( inet_aton($ip), AF_INET ) || "" });
-  
-  if (defined $reverse) {
-    # Return undef is reverse returned the same thing, most likely called with a hostname...
-    return $reverse eq $ip ? "" : $reverse;
-  }
-  else {
-    return "";
-  }
+    my $cache = $self->cache;
+
+    my $reverse = $cache->compute( "reverse_ip($ip)", undef,
+        sub { gethostbyaddr( inet_aton($ip), AF_INET ) || "" } );
+
+    if ( defined $reverse ) {
+
+# Return undef is reverse returned the same thing, most likely called with a hostname...
+        return $reverse eq $ip ? "" : $reverse;
+    }
+    else {
+        return "";
+    }
 }
+
 =head2 version
 
 prints current version to STDERR
