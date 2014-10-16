@@ -3,3 +3,4 @@
 * Convert remaining stuff to Log4Perl
 * ship logrotate
 * Reload configuration in rrd deamon
+* zxtm-node doesn't do ip lookups of nodes defined with hostnames

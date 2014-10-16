@@ -114,6 +114,8 @@ sub get_nodes {
   return \%nodes;
 }
 
+print Dumper($nodes);
+
 foreach my $node (@nodes) {
   if (exists ($nodes->{$node})) {
     print_info($node, $nodes->{$node});
@@ -122,8 +124,6 @@ foreach my $node (@nodes) {
 
 sub print_info {
   my ($node, $info) = @_;
- 
-  print Dumper($info);
  
   if ( my $reverse = reverse_ip($node)) {
     $node = "$node ($reverse)";
@@ -153,7 +153,7 @@ sub print_info {
       print "  [pool $pool]\n";
       print "    port $port\n";
       print "    state $state\n";
-      print "    weight $weight\n";
+      print "    weight $weight\n" if defined $weight;
     }
   }
 }
