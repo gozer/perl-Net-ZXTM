@@ -16,20 +16,34 @@ use Net::ZXTM;
 
 use Data::Dumper;
 
-use CHI;
+use Cache::FileCache;
 
 my $cfg = Net::ZXTM->configuration();
 
-my $cache = CHI->new( driver => 'File',
-        root_dir => $cfg->val('global','cache','cache'),
+my $cache = Cache::FileCache->new({
+        cache_root => $cfg->val('global','cache','cache'),
 	namespace => 'Net::ZXTM',
-	expires_in => '15m',
-	expires_variance => 0.1,
-    );
+	default_expires_in => $cfg->val('global','cache_expiry','60m'),
+    });
 
 my @nodes = @ARGV;
 
 my $nodes = get_nodes($cfg);
+
+#XXX: Inject, CHI-style
+sub Cache::BaseCache::compute {
+  my ($self, $key, $expiry, $sub) = @_;
+ 
+  my $val = $self->get($key);
+ 
+  if (defined $val) {
+    return $val;
+  }
+  
+  $val = $sub->();
+  $self->set($key, $val, $expiry);
+  return $val;
+}
 
 #XXX: Injection for now
 sub Net::ZXTM::cached_call {
@@ -38,6 +52,22 @@ sub Net::ZXTM::cached_call {
   my $key = $self->{url} . $api;
   
   return $cache->compute( $key, undef, sub { $self->call($api) });
+}
+
+use Socket;
+# returns the hostname for an ip, undef if passed a hostname
+sub reverse_ip {
+  my $ip = shift;
+
+  my $reverse = $cache->compute("reverse_ip($ip)", undef, sub { gethostbyaddr( inet_aton($ip), AF_INET ) || "" });
+  
+  if (defined $reverse) {
+    # Return undef is reverse returned the same thing, most likely called with a hostname...
+    return $reverse eq $ip ? "" : $reverse;
+  }
+  else {
+    return "";
+  }
 }
 
 sub get_nodes {
@@ -67,10 +97,17 @@ sub get_nodes {
       my $nodes_table = $pool->{properties}{basic}{nodes_table};
       
       foreach my $node (@$nodes_table) {
-        $node->{zxtm} = $url;
-        $nodes{$node->{node}}{zxtm}{$url}{pools}{$name} = $node;
-      }
-      
+        my ($host, $port) = split(':', $node->{node});
+        
+	$node->{zxtm} = $url;
+	$node->{port} = $port;
+	
+        $nodes{$host}{zxtm}{$url}{pools}{$name} = $node;
+	
+	if (my $reverse = reverse_ip($host)) {
+	  $nodes{$reverse}{zxtm}{$url}{pools}{$name} = $node;
+	}
+      } 
     }
   }
   
@@ -85,6 +122,12 @@ foreach my $node (@nodes) {
 
 sub print_info {
   my ($node, $info) = @_;
+ 
+  print Dumper($info);
+ 
+  if ( my $reverse = reverse_ip($node)) {
+    $node = "$node ($reverse)";
+  }
   
   print "* $node\n";
   
@@ -98,10 +141,17 @@ sub print_info {
     foreach my $pool ( sort keys %$pools) {
       my $p = $pools->{$pool};
       
+      my $port = $p->{port};
+      
+      if ( my $port_name = getservbyport($port, "tcp")) {
+        $port = "$port_name/$port";
+      }
+      
       my $state = $p->{state};
       my $weight = $p->{weight};
       
       print "  [pool $pool]\n";
+      print "    port $port\n";
       print "    state $state\n";
       print "    weight $weight\n";
     }
