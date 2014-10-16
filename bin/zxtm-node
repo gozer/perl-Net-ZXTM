@@ -1,0 +1,141 @@
+#!/usr/bin/env perl
+
+#PODNAME: zxtm-node
+
+use strict;
+use warnings;
+
+local $| = 1;
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+
+use JSON;
+
+use Net::ZXTM;
+
+use Data::Dumper;
+
+use CHI;
+
+use Log::Any::Adapter ('Stderr');
+
+my $cfg = Net::ZXTM->configuration();
+
+my $cache = CHI->new( driver => 'File',
+        root_dir => $cfg->val('global','cache','cache'),
+	namespace => 'Net::ZXTM',
+	expires_in => '15m',
+	expires_variance => 0.1,
+    );
+
+my @nodes = @ARGV;
+
+my $nodes = get_nodes($cfg);
+
+sub get_nodes_cached {
+  return $cache->compute("nodes/3", undef, sub { get_nodes($cfg) });
+}
+
+sub Net::ZXTM::cached_call {
+  my ($self, $api) = @_;
+  
+  my $key = $self->{url} . $api;
+  
+  return $cache->compute( $key, undef, sub { $self->call($api) });
+}
+
+sub get_nodes {
+  my $cfg = shift;
+  my %nodes;
+  foreach my $section ( $cfg->Sections ) {
+    next if $section eq 'global';
+
+    # We specify all members of the cluster, but talk only to the first one (for now)
+    my @urls    = $cfg->val( $section, 'url' );
+    my $url 	= $urls[0];
+    
+    my $username = $cfg->val( $section, 'username', $ENV{ZXTM_USER} );
+    my $password = $cfg->val( $section, 'password', $ENV{ZXTM_PASS} );
+
+    my $uri  = URI->new($url);
+    my $host = $uri->host;
+
+    my $zxtm = Net::ZXTM->new( $url, $username, $password );
+    
+    my $pools = $zxtm->cached_call("/config/active/pools");
+    
+    foreach my $p (@$pools) {
+      my $name = $p->{name};
+      my $pool = $zxtm->cached_call("/config/active/pools/$name");
+      
+      my $nodes_table = $pool->{properties}{basic}{nodes_table};
+      
+      foreach my $node (@$nodes_table) {
+        $node->{zxtm} = $url;
+      
+        $nodes{$node->{node}}{zxtm}{$url}{pools}{$name} = $node;
+	
+	#$nodes{$node->{node}}{pools}{$name} = $node;
+      }
+      
+    }
+  }
+  
+  return \%nodes;
+}
+
+#print Dumper($nodes);
+
+foreach my $node (@nodes) {
+  if (exists ($nodes->{$node})) {
+    print_info($node, $nodes->{$node});
+  }
+}
+
+sub print_info {
+  my ($node, $info) = @_;
+  
+  print "* $node\n";
+  
+  my $zxtms = $info->{zxtm};
+  
+  foreach my $zxtm (sort keys %$zxtms) {
+    my $z = $zxtms->{$zxtm};
+    print " [zxtm $zxtm] \n";
+    
+    my $pools = $z->{pools};
+    foreach my $pool ( sort keys %$pools) {
+      my $p = $pools->{$pool};
+      
+      my $state = $p->{state};
+      my $weight = $p->{weight};
+      
+      print "  [pool $pool]\n";
+      print "    state $state\n";
+      print "    weight $weight\n";
+    }
+  }
+}
+
+__END__
+
+ 'properties' => {
+                            'basic' => {
+                                         'monitors' => [
+                                                         'Connect'
+                                                       ],
+                                         'node_connection_attempts' => 3,
+                                         'nodes_table' => [
+                                                            {
+                                                              'node' => '10.20.70.27:3306',
+                                                              'state' => 'active',
+                                                              'weight' => 1
+                                                            },
+                                                            {
+                                                              'state' => 'draining',
+                                                              'node' => '10.20.70.28:3306',
+                                                              'weight' => 1
+                                                            }
+                                                          ],
+
