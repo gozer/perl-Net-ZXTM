@@ -114,8 +114,6 @@ sub get_nodes {
   return \%nodes;
 }
 
-print Dumper($nodes);
-
 foreach my $node (@nodes) {
   if (exists ($nodes->{$node})) {
     print_info($node, $nodes->{$node});
