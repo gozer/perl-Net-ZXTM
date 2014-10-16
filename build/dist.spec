@@ -1,3 +1,5 @@
+%global rrdlogfile %{_localstatedir}/log/zxtm/rrd.log
+
 Name: perl-<% $zilla->name %>
 Version: <% (my $v = $zilla->version) =~ s/^v//; $v %>
 Release: 1.<% $ENV{BUILD_NUMBER} || 1 %>
@@ -58,6 +60,11 @@ fi
 
 %post
 /sbin/chkconfig --add zxtm-rrd
+test -e %rrdlogfile || {
+ touch %rrdlogfile
+ chmod 0640 %rrdlogfile
+ chown nobody:root %rrdlogfile
+}
 
 %preun
 if [ $1 == 0 ]; then # package is being erased, not upgraded
@@ -88,7 +95,7 @@ fi
 %{_sysconfdir}/cron.d/zxtm
 %attr(0775,nobody,root) %{_sharedstatedir}/zxtm/rrds
 %attr(0775,nobody,root) %{_sharedstatedir}/zxtm/rrds/global
-%attr(0640,nobody,root) %{_localstatedir}/log/zxtm/rrd.log
+%ghost %config %{_localstatedir}/log/zxtm/rrd.log
 %attr(0750,nobody,root) %{_localstatedir}/log/zxtm
 %attr(0750,nobody,root) %{_localstatedir}/cache/zxtm
 %{_localstatedir}/www/html/zxtm
