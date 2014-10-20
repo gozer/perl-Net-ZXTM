@@ -28,12 +28,12 @@ GetOptions(\%opts,
 'drain',
 'enable',
 'disable',
+'reason=s',
 'dry-run|n',
 ) or pod2usage(2);
 
 pod2usage(1) if $opts{help};
 pod2usage(-exitval => 0, -verbose => 2) if $opts{man};
-
 
 my @nodes = @ARGV;
 
@@ -85,6 +85,7 @@ sub get_nodes {
             my $pool = $zxtm->cached_call("/config/active/pools/$name");
 
             my $nodes_table = $pool->{properties}{basic}{nodes_table};
+	    my $note = $pool->{properties}{basic}{note};
 
             foreach my $node (@$nodes_table) {
                 my ( $host, $port ) = split( ':', $node->{node} );
@@ -107,16 +108,17 @@ sub get_nodes {
 
 #print Dumper($nodes);
 
+my $reason = $opts{reason};
 foreach my $node (@nodes) {
     if ( exists( $nodes->{$node} ) ) {
         if ($opts{disable}) {
-	  disable_node($node, $nodes->{$node});
+	  disable_node($node, $nodes->{$node}, $reason);
 	}
 	elsif ($opts{drain}) {
-	  drain_node($node, $nodes->{$node});
+	  drain_node($node, $nodes->{$node}, $reason);
 	}
 	elsif ($opts{enable}) {
-	  enable_node($node, $nodes->{$node});
+	  enable_node($node, $nodes->{$node}, $reason);
 	}
 	else {
           print_info( $node, $nodes->{$node} );
@@ -125,25 +127,26 @@ foreach my $node (@nodes) {
 }
 
 sub enable_node {
-  my ($node, $info) = @_;
+  my ($node, $info, $reason) = @_;
   
-  return change_node($node, $info, 'active');
+  return change_node($node, $info, 'active', $reason);
 }
 
 sub disable_node {
-  my ($node, $info) = @_;
+  my ($node, $info, $reason) = @_;
   
-  return change_node($node, $info, 'disabled');
+  return change_node($node, $info, 'disabled', $reason);
 }
 
 sub drain_node {
-  my ($node, $info) = @_;
+  my ($node, $info, $reason) = @_;
   
-  return change_node($node, $info, 'draining');
+  return change_node($node, $info, 'draining', $reason);
 }
 
+use URI::Escape;
 sub change_node {
-  my ($node, $info, $state) = @_;
+  my ($node, $info, $state, $reason) = @_;
     
   my $zxtms = $info->{zxtm};
 
@@ -159,6 +162,7 @@ sub change_node {
 	my $config = $zxtm->call_refresh("/config/active/pools/$pool");
 	
 	my $nodes_table = $config->{properties}{basic}{nodes_table};
+	my $note =  $config->{properties}{basic}{note};
 	
 	foreach my $n (@$nodes_table) {
 	  if ($n->{node} eq $node_name) {
@@ -171,6 +175,7 @@ sub change_node {
             }
 
             print "    [pool $pool]\n";
+	    print "      note $note\n" if defined $note;
             print "      port $port\n";
             print "      state $cur_state => $state\n";
             print "      weight $weight\n" if defined $weight;
@@ -187,6 +192,17 @@ sub change_node {
 	    },
 	  },
 	};
+	
+	if (defined $reason) {
+	  #XXX: Check $note so we don't quash existing notes...
+	  my $msg = "Changed by zxtm-node : $reason";
+	  $note ||= "";
+	  
+	  if ($note ne $msg) {
+	    print "      note '$note' => '$msg'\n";
+	    $config->{properties}{basic}{note} = $msg;
+	  }
+	}
 	
 	$zxtm->alter("/config/active/pools/$pool", $config) unless $opts{'dry-run'};
     }
