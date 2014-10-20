@@ -150,9 +150,9 @@ sub cached_call {
 
 #XXX: This needs to do a cache refresh
 sub call_refresh {
-  my ( $self, $call, $payload ) = @_;
+    my ( $self, $call, $payload ) = @_;
 
-  return $self->call($call, $payload);
+    return $self->call( $call, $payload );
 }
 
 sub alter {
