@@ -18,7 +18,30 @@ use Data::Dumper;
 
 my $cfg = Net::ZXTM->configuration();
 
+use Getopt::Long;
+use Pod::Usage;
+
+my %opts;
+GetOptions(\%opts,
+'help|?',
+'man',
+'drain',
+'enable',
+'disable',
+'dry-run|n',
+) or pod2usage(2);
+
+pod2usage(1) if $opts{help};
+pod2usage(-exitval => 0, -verbose => 2) if $opts{man};
+
+
 my @nodes = @ARGV;
+
+my $sum = ($opts{drain}||0) + ($opts{enable}||0) + ($opts{disable}||0);
+
+if ($sum > 1) {
+  die "Specify one of --drain, --enable, --disable";
+}
 
 my $nodes = get_nodes($cfg);
 
@@ -67,6 +90,7 @@ sub get_nodes {
                 my ( $host, $port ) = split( ':', $node->{node} );
 
                 $node->{zxtm} = $url;
+		$node->{'zxtm-api'} = $zxtm;
                 $node->{port} = $port;
 
                 $nodes{$host}{zxtm}{$url}{pools}{$name} = $node;
@@ -81,10 +105,92 @@ sub get_nodes {
     return \%nodes;
 }
 
+#print Dumper($nodes);
+
 foreach my $node (@nodes) {
     if ( exists( $nodes->{$node} ) ) {
-        print_info( $node, $nodes->{$node} );
+        if ($opts{disable}) {
+	  disable_node($node, $nodes->{$node});
+	}
+	elsif ($opts{drain}) {
+	  drain_node($node, $nodes->{$node});
+	}
+	elsif ($opts{enable}) {
+	  enable_node($node, $nodes->{$node});
+	}
+	else {
+          print_info( $node, $nodes->{$node} );
+	}
     }
+}
+
+sub enable_node {
+  my ($node, $info) = @_;
+  
+  return change_node($node, $info, 'active');
+}
+
+sub disable_node {
+  my ($node, $info) = @_;
+  
+  return change_node($node, $info, 'disabled');
+}
+
+sub drain_node {
+  my ($node, $info) = @_;
+  
+  return change_node($node, $info, 'draining');
+}
+
+sub change_node {
+  my ($node, $info, $state) = @_;
+    
+  my $zxtms = $info->{zxtm};
+
+  foreach my $zxtm ( sort keys %$zxtms ) {
+    my $z = $zxtms->{$zxtm};
+    print "  [zxtm $zxtm] \n";
+
+    my $pools = $z->{pools};
+    foreach my $pool ( sort keys %$pools ) {  
+        my $p = $pools->{$pool};
+	my $node_name = $p->{node};
+	my $zxtm = $p->{'zxtm-api'};
+	my $config = $zxtm->call_refresh("/config/active/pools/$pool");
+	
+	my $nodes_table = $config->{properties}{basic}{nodes_table};
+	
+	foreach my $n (@$nodes_table) {
+	  if ($n->{node} eq $node_name) {
+	    my $cur_state = $n->{state};
+	    my $weight = $n->{weight};
+	    my $port = $p->{port};
+
+            if ( my $port_name = getservbyport( $port, "tcp" ) ) {
+                $port = "$port_name/$port";
+            }
+
+            print "    [pool $pool]\n";
+            print "      port $port\n";
+            print "      state $cur_state => $state\n";
+            print "      weight $weight\n" if defined $weight;
+
+	    $n->{state} = $state;
+	    last;
+	  }
+	}
+	
+	$config = {
+	  properties => {
+	    basic => {
+	      nodes_table => $nodes_table,
+	    },
+	  },
+	};
+	
+	$zxtm->alter("/config/active/pools/$pool", $config) unless $opts{'dry-run'};
+    }
+  }
 }
 
 sub print_info {
@@ -121,22 +227,40 @@ sub print_info {
 
 __END__
 
- 'properties' => {
-                            'basic' => {
-                                         'monitors' => [
-                                                         'Connect'
-                                                       ],
-                                         'node_connection_attempts' => 3,
-                                         'nodes_table' => [
-                                                            {
-                                                              'node' => '10.20.70.27:3306',
-                                                              'state' => 'active',
-                                                              'weight' => 1
-                                                            },
-                                                            {
-                                                              'state' => 'draining',
-                                                              'node' => '10.20.70.28:3306',
-                                                              'weight' => 1
-                                                            }
-                                                          ],
+=head1 NAME
+
+sample - Using GetOpt::Long and Pod::Usage
+
+=head1 SYNOPSIS
+
+node-zxtm [options] [node ...]
+
+  Options:
+   -help            brief help message
+   -man             full documentation
+   -disable         disable the node
+   -enable          enable the node
+   -drain           drain the node
+
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-help>
+
+Print a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 DESCRIPTION
+
+B<This program> allows for cross-cluster ZXTM node querying and modification
+
+=cut
+
 

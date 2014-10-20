@@ -125,6 +125,17 @@ sub get {
     return $self->{ua}->get($url);
 }
 
+sub put {
+    my ( $self, $url, $data ) = @_;
+
+    my $json = to_json($data);
+    return $self->{ua}->put(
+        $url,
+        Content        => $json,
+        'Content-type' => 'application/json'
+    );
+}
+
 sub cache { shift->{cache} }
 
 sub cached_call {
@@ -137,12 +148,31 @@ sub cached_call {
     return $cache->compute( $key, undef, sub { $self->call($api) } );
 }
 
+#XXX: This needs to do a cache refresh
+sub call_refresh {
+  my ( $self, $call, $payload ) = @_;
+
+  return $self->call($call, $payload);
+}
+
+sub alter {
+    my ( $self, $call, $payload ) = @_;
+
+    return $self->call( $call, $payload );
+}
+
 sub call {
-    my ( $self, $call ) = @_;
+    my ( $self, $call, $payload ) = @_;
 
     my $url = $self->{api} . $call;
 
-    my $resp = $self->get($url);
+    my $resp;
+    if ($payload) {
+        $resp = $self->put( $url, $payload );
+    }
+    else {
+        $resp = $self->get($url);
+    }
 
     if ( $resp->is_success ) {
         my $json = from_json( $resp->content );
@@ -161,13 +191,16 @@ sub call {
     else {
         my $error_id   = "unknown";
         my $error_text = $resp->status_line;
+        my $error_info = "";
 
         if ( $resp->content ) {
             my $content_type = $resp->header('Content-type');
 
             my $json = {};
 
-            if ( $content_type eq 'text/json' ) {
+            if (   $content_type eq 'application/json'
+                or $content_type eq 'text/json' )
+            {
                 eval { $json = from_json( $resp->content ); };
             }
 
@@ -177,8 +210,15 @@ sub call {
             if ( exists $json->{error_text} ) {
                 $error_text = $json->{error_text};
             }
+
+            #if ( exists $json->{error_info} ) {
+            #    $error_info = Dumper($json->{error_info});
+            #}
         }
-        warn "Failed to talk to ZXTM ($url): $error_id: \"$error_text\"";
+
+        warn
+"Failed to talk to ZXTM ($url): $error_id: \"$error_text\" $error_info";
+        print Dumper($resp);
         return [];
     }
 }
