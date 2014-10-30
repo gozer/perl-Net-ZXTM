@@ -86,12 +86,14 @@ sub get_tigs {
 my $reason = $opts{reason};
 
 use Socket;
+use Socket::GetAddrInfo qw( getaddrinfo getnameinfo NI_NUMERICHOST);
+
 my %ips;
 foreach my $tig (@tigs) {
-  my ($err, @result) = Socket::getaddrinfo($tig, 0, { 'protocol' => Socket::IPPROTO_TCP });
+  my ($err, @result) = Socket::GetAddrInfo::getaddrinfo($tig, 0, { 'protocol' => Socket::IPPROTO_TCP });
 
   foreach my $addr (@result) {
-    my ($err, $host) = Socket::getnameinfo($addr->{addr}, Socket::NI_NUMERICHOST);
+    my ($err, $host) = Socket::GetAddrInfo::getnameinfo($addr->{addr}, Socket::GetAddrInfo::NI_NUMERICHOST);
     
     if (not exists $tigs->{$host}) {
       warn "No known TIGS with $host\n";
