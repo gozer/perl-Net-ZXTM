@@ -19,6 +19,21 @@ use Log::Log4perl qw(:easy);
 
 use Carp;
 
+#XXX: Inject, CHI-style
+sub Cache::BaseCache::compute {
+    my ( $self, $key, $expiry, $sub ) = @_;
+
+    my $val = $self->get($key);
+
+    if ( defined $val ) {
+        return $val;
+    }
+
+    $val = $sub->();
+    $self->set( $key, $val, $expiry );
+    return $val;
+}
+
 sub configuration {
     my $config_file = "zxtm.conf";
 
@@ -150,9 +165,14 @@ sub cached_call {
 
 #XXX: This needs to do a cache refresh
 sub call_refresh {
-    my ( $self, $call, $payload ) = @_;
+    my ( $self, $api) = @_;
+    
+    my $cache = $self->cache;
+    my $key = $self->{url} . $api;
 
-    return $self->call( $call, $payload );
+    $cache->remove($key);
+
+    return $self->call( $api );
 }
 
 sub alter {
