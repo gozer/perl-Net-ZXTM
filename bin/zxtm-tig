@@ -1,0 +1,283 @@
+#!/usr/bin/env perl
+
+#PODNAME: zxtm-tig
+
+use strict;
+use warnings;
+
+local $| = 1;
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+
+use JSON;
+
+use Net::ZXTM;
+
+use Data::Dumper;
+
+my $cfg = Net::ZXTM->configuration();
+
+use Getopt::Long;
+use Pod::Usage;
+
+my %opts;
+GetOptions(\%opts,
+'help|?',
+'man',
+'enable',
+'disable',
+'reason=s',
+'dry-run|n',
+) or pod2usage(2);
+
+pod2usage(1) if $opts{help};
+pod2usage(-exitval => 0, -verbose => 2) if $opts{man};
+
+my @tigs = @ARGV;
+
+my $sum = ($opts{enable}||0) + ($opts{disable}||0);
+
+if ($sum > 1) {
+  die "Specify one of --enable, --disable";
+}
+
+my $tigs = get_tigs($cfg);
+
+sub get_tigs {
+    my $cfg = shift;
+    my %tigs;
+    foreach my $section ( $cfg->Sections ) {
+        next if $section eq 'global';
+
+# We specify all members of the cluster, but talk only to the first one (for now)
+        my @urls = $cfg->val( $section, 'url' );
+        my $url = $urls[0];
+
+        my $username = $cfg->val( $section, 'username', $ENV{ZXTM_USER} );
+        my $password = $cfg->val( $section, 'password', $ENV{ZXTM_PASS} );
+
+        my $uri  = URI->new($url);
+        my $host = $uri->host;
+
+        my $zxtm = Net::ZXTM->new( $url, $username, $password, $cfg );
+
+        my $tigs = $zxtm->cached_call("/config/active/traffic_ip_groups");
+
+        foreach my $t (@$tigs) {
+            my $name = $t->{name};
+            my $tig = $zxtm->cached_call("/config/active/traffic_ip_groups/$name");
+	    
+	    my $config = $tig->{properties}{basic};
+	    
+	    my $ips = $config->{ipaddresses};
+	    my $note = $config->{note};
+	    
+	    foreach my $ip (@$ips) {
+	      $tigs{$ip}{zxtm}{$url}{tigs}{$name} = $config;
+	      $tigs{$ip}{zxtm}{$url}{tigs}{$name}{zxtmapi} = $zxtm;
+	    }
+        }
+    }
+
+    return \%tigs;
+}
+
+my $reason = $opts{reason};
+
+use Socket;
+my %ips;
+foreach my $tig (@tigs) {
+  my ($err, @result) = Socket::getaddrinfo($tig, 0, { 'protocol' => Socket::IPPROTO_TCP });
+
+  foreach my $addr (@result) {
+    my ($err, $host) = Socket::getnameinfo($addr->{addr}, Socket::NI_NUMERICHOST);
+    
+    if (not exists $tigs->{$host}) {
+      warn "No known TIGS with $host\n";
+    }
+    else {
+      $ips{$host}++;
+    }
+  }
+}
+
+foreach my $ip (sort keys %ips) {
+    if ( exists( $tigs->{$ip} ) ) {
+        if ($opts{disable}) {
+	  disable_tig($ip, $tigs->{$ip}, $reason);
+	}
+	elsif ($opts{enable}) {
+	  enable_tig($ip, $tigs->{$ip}, $reason);
+	}
+	else {
+          print_info( $ip, $tigs->{$ip} );
+	}
+    }
+}
+
+if (scalar keys %ips == 0) {
+  print sort keys %$tigs;
+}
+
+use JSON;
+sub enable_tig {
+  my ($tig, $info, $reason) = @_;
+  
+  return change_tig($tig, $info, 'enabled', JSON::true, $reason);
+}
+
+sub disable_tig {
+  my ($tig, $info, $reason) = @_;
+  
+  return change_tig($tig, $info, 'enabled', JSON::false, $reason);
+}
+
+use URI::Escape;
+sub change_tig {
+  my ($ip, $info, $key, $value, $reason) = @_;
+    
+  my $zxtms = $info->{zxtm};
+
+  foreach my $zxtm ( sort keys %$zxtms ) {
+    my $z = $zxtms->{$zxtm};
+
+    my $tigs = $z->{tigs};
+    foreach my $tig ( sort keys %$tigs ) {  
+        my $t = $tigs->{$tig};
+	my $note = $t->{note};
+
+	my $zxtm_obj = $t->{zxtmapi};
+	
+	my $config = {
+	  properties => {
+	    basic => {
+	      $key => $value,
+	    },
+	  },
+	};
+		
+	if (defined $reason) {
+	  #XXX: Check $note so we don't quash existing notes...
+	  my $msg = "Changed by zxtm-tig : $reason";
+	  $note ||= "";
+	  
+	  if ($note ne $msg) {
+	    $config->{properties}{basic}{note} = $msg;
+	  }
+	}
+	
+	$zxtm_obj->alter("/config/active/traffic_ip_groups/$tig", $config) unless $opts{'dry-run'};
+    }
+  }
+
+  print_info ($ip, $info);
+}
+
+sub print_info {
+    my ( $node, $info ) = @_;
+
+    print "* $node\n";
+
+    my $zxtms = $info->{zxtm};
+
+    foreach my $zxtm ( sort keys %$zxtms ) {
+        my $z = $zxtms->{$zxtm};
+        print " [zxtm $zxtm] \n";
+
+        my $tigs = $z->{tigs};
+        foreach my $tig ( sort keys %$tigs ) {
+            my $p = $tigs->{$tig};
+	    
+	    my $zxtm_obj = $p->{zxtmapi};
+	    my $config = $zxtm_obj->call_refresh("/config/active/traffic_ip_groups/$tig");
+	    $config = $config->{properties}{basic};
+
+            my $enabled  = $config->{enabled};
+            my $mode = $config->{mode};
+	    my $multicast = $config->{multicast};
+	    my $note = $config->{note};
+	    my $keeptogether = $config->{keeptogether};
+	    my $ip_mapping = $config->{ip_mapping};
+	    
+	    my $slaves = $config->{slaves};
+	    my $machines = $config->{machines};
+
+            print "  [tig $tig]\n";
+	    print "    note $note\n" if $note;
+            print "    enabled $enabled\n";
+            print "    mode $mode\n";
+	    print "    keeptogether $keeptogether\n";
+	    print "    machines " . encode_json($machines) . "\n";
+	    print "    slaves " . encode_json($slaves) . "\n";
+	    print "    ipmapping " . encode_json($ip_mapping) . "\n";
+	    
+        }
+    }
+}
+
+__END__
+
+ 'slaves' => [
+                                                       'zlb1.ops.scl3.mozilla.com',
+                                                       'zlb3.ops.scl3.mozilla.com',
+                                                       'zlb5.ops.scl3.mozilla.com'
+                                                     ],
+                                         'enabled' => bless( do{\(my $o = 1)}, 'JSON::XS::Boolean' ),
+                                         'hash_source_port' => bless( do{\(my $o = 0)}, 'JSON::XS::Boolean' ),
+                                         'machines' => [
+                                                         'zlb1.ops.scl3.mozilla.com',
+                                                         'zlb3.ops.scl3.mozilla.com',
+                                                         'zlb5.ops.scl3.mozilla.com',
+                                                         'zlb6.ops.scl3.mozilla.com'
+                                                       ],
+                                         'ip_mapping' => [],
+                                         'note' => '',
+                                         'location' => 0,
+                                         'multicast' => '',
+                                         'keeptogether' => $VAR1->{'properties'}{'basic'}{'enabled'},
+                                         'ipaddresses' => [
+                                                            '10.22.74.223',
+                                                            '63.245.215.5'
+                                                          ],
+                                         'mode' => 'singlehosted'
+                                       }
+
+
+=head1 NAME
+
+sample - Using GetOpt::Long and Pod::Usage
+
+=head1 SYNOPSIS
+
+zxtm-tig [options] [node ...]
+
+  Options:
+   -help            brief help message
+   -man             full documentation
+   -disable         disable the node
+   -enable          enable the node
+   -drain           drain the node
+
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-help>
+
+Print a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 DESCRIPTION
+
+B<This program> allows for cross-cluster ZXTM tig querying and modification
+
+=cut
+
+
