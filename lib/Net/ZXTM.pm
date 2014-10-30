@@ -166,13 +166,13 @@ sub cached_call {
 #XXX: This needs to do a cache refresh
 sub call_refresh {
     my ( $self, $api) = @_;
-    
+   
     my $cache = $self->cache;
     my $key = $self->{url} . $api;
-
+    
     $cache->remove($key);
 
-    return $self->call( $api );
+    return $self->cached_call( $api );
 }
 
 sub alter {
@@ -185,7 +185,7 @@ sub call {
     my ( $self, $call, $payload ) = @_;
 
     my $url = $self->{api} . $call;
-
+    
     my $resp;
     if ($payload) {
         $resp = $self->put( $url, $payload );
