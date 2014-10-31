@@ -7,7 +7,8 @@ our $VERSION;
 
 #ABSTRACT: Zeus Traffic Manager REST API
 
-use LWP;
+use LWP::UserAgent::Determined;
+
 use JSON;
 use IO::Socket::SSL qw(SSL_VERIFY_NONE);
 
@@ -68,7 +69,7 @@ sub new {
         config     => $cfg,
     }, $class;
 
-    my $ua = LWP::UserAgent->new(
+    my $ua = LWP::UserAgent::Determined->new(
         timeout    => 30,
         keep_alive => 8,
     );
