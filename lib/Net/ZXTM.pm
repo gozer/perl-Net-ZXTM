@@ -141,6 +141,17 @@ sub get {
     return $self->{ua}->get($url);
 }
 
+# LWP::UserAgent->put is relatively new...
+# Monkey-patch it in if it isn't there yet.
+unless (LWP::UserAgent->can('put')) {
+  *LWP::UserAgent::put = sub {
+    require HTTP::Request::Common;
+    my($self, @parameters) = @_;
+    my @suff = $self->_process_colonic_headers(\@parameters, (ref($parameters[1]) ? 2 : 1));
+    return $self->request( HTTP::Request::Common::PUT( @parameters ), @suff );
+  };
+}
+
 sub put {
     my ( $self, $url, $data ) = @_;
 
