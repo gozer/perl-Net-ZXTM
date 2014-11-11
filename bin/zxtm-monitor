@@ -93,6 +93,7 @@ foreach my $section ( $cfg->Sections ) {
 
     $zxtms{$url}{cluster_nodes} = \%zxtm;
     $zxtms{$url}{config}        = check_config($zxtm);
+    $zxtms{$url}{servers}       = check_servers($zxtm);
     $zxtms{$url}{tigs}          = check_tigs( $zxtm, $zxtms{$url} );
     $zxtms{$url}{ssl}           = check_ssl($zxtm);
     $zxtms{$url}{pools}         = check_pools($zxtm);
@@ -163,6 +164,7 @@ sub check_ssl {
 
           # Identify issues that have been already handled
           # NOWARN: in the notes or something that smells like a bugzilla bug id
+            $certs{$name}{note} ||= "";
             if (   $certs{$name}{note} =~ /NOWARN:/
                 or $certs{$name}{note} =~ /id=\d+/ )
             {
@@ -261,6 +263,24 @@ sub check_tigs {
     return \%tigs;
 }
 
+sub check_servers {
+    my $zxtm = shift;
+
+    print "** Checking Virtual Servers\n";
+
+    my $servers = $zxtm->call("/config/active/virtual_servers");
+
+    my %servers;
+
+    warn Dumper($servers);
+    foreach my $server (@$servers) {
+        my $name = $server->{name};
+        $servers{$name}{info} = $zxtm->call("/config/active/virtual_servers/$name");
+        $servers{$name}{note} = URI::Escape::uri_unescape(
+            $servers{$name}{info}{properties}{basic}{note} );
+    }
+    return \%servers;
+}
 sub check_pools {
     my $zxtm = shift;
 
