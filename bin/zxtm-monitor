@@ -272,7 +272,6 @@ sub check_servers {
 
     my %servers;
 
-    warn Dumper($servers);
     foreach my $server (@$servers) {
         my $name = $server->{name};
         $servers{$name}{info} = $zxtm->call("/config/active/virtual_servers/$name");
